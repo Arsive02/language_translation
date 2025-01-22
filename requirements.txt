@@ -36,7 +36,7 @@ numpy==1.26.3
 opencv-python-headless
 pandas==2.2.3
 pdftext==0.4.1
-pillow==10.2.0
+pillow==10.3.0
 protobuf==5.29.3
 pyarrow==19.0.0
 pydantic==2.10.5
