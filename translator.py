@@ -215,62 +215,65 @@ def main():
     
     # Image Translation Tab
     with tab2:
-        st.subheader("Image Translation")
-        
-        # Image source selection
-        image_source = st.radio("Image Source", ["Upload Image", "Use Sample Image"])
-        
-        if image_source == "Upload Image":
-            uploaded_file = st.file_uploader("Choose an image...", type=['png', 'jpg', 'jpeg'])
-            if uploaded_file is not None:
-                image = Image.open(uploaded_file)
-        else:
-            selected_sample = st.selectbox("Select sample image", SAMPLE_IMAGES)
-            image = Image.open(selected_sample)
-        
-        if 'image' in locals():  # If an image is loaded (either uploaded or sample)
-            st.image(image, caption="Selected Image", use_container_width=True)
+        try:
+            st.subheader("Image Translation")
             
-            if st.button("Extract and Translate Text", key="translate_image"):
-                with st.spinner("Processing image..."):
-                    # Extract text using OCR
-                    det_processor, det_model, rec_processor, rec_model = load_ocr_model()
-                    predictions = run_ocr([image], [langs], det_model, det_processor, rec_model, rec_processor)
-                    extracted_text = " ".join([line.text for line in predictions[0].text_lines])
-                    
-                    if extracted_text:
-                        st.write("### Extracted Text:")
-                        st.write(extracted_text)
-                        st.session_state.source_text = extracted_text
+            # Image source selection
+            image_source = st.radio("Image Source", ["Upload Image", "Use Sample Image"])
+            
+            if image_source == "Upload Image":
+                uploaded_file = st.file_uploader("Choose an image...", type=['png', 'jpg', 'jpeg'])
+                if uploaded_file is not None:
+                    image = Image.open(uploaded_file)
+            else:
+                selected_sample = st.selectbox("Select sample image", SAMPLE_IMAGES)
+                image = Image.open(selected_sample)
+            
+            if 'image' in locals():  # If an image is loaded (either uploaded or sample)
+                st.image(image, caption="Selected Image", use_container_width=True)
+                
+                if st.button("Extract and Translate Text", key="translate_image"):
+                    with st.spinner("Processing image..."):
+                        # Extract text using OCR
+                        det_processor, det_model, rec_processor, rec_model = load_ocr_model()
+                        predictions = run_ocr([image], [langs], det_model, det_processor, rec_model, rec_processor)
+                        extracted_text = " ".join([line.text for line in predictions[0].text_lines])
                         
-                        st.write("### Translated Text:")
-                        translated = translate_text(extracted_text, source_lang_info, target_lang_info)
-                        st.write(translated)
-                        st.session_state.translated_text = translated
+                        if extracted_text:
+                            st.write("### Extracted Text:")
+                            st.write(extracted_text)
+                            st.session_state.source_text = extracted_text
+                            
+                            st.write("### Translated Text:")
+                            translated = translate_text(extracted_text, source_lang_info, target_lang_info)
+                            st.write(translated)
+                            st.session_state.translated_text = translated
+                        else:
+                            st.warning("No text detected in the image")
+
+                            
+                def get_download_link(data, filename):
+                    """Generate a link to download data as a file."""
+                    json_data = json.dumps(data)
+                    b64 = base64.b64encode(json_data.encode()).decode()
+                    return f'<a href="data:application/json;base64,{b64}" download="{filename}">Download JSON file</a>'
+
+                if 'translated_text' not in st.session_state:
+                    st.session_state.translated_text = ""
+                if 'source_text' not in st.session_state:
+                    st.session_state.source_text = ""
+
+                if st.button("Save Translation", key="save_translation"):
+                    if st.session_state.translated_text and st.session_state.source_text:
+                        data = {
+                            "source_text": st.session_state.source_text,
+                            "translated_text": st.session_state.translated_text
+                        }
+                        download_link = get_download_link(data, "translated_text.json")
+                        st.markdown(download_link, unsafe_allow_html=True)
                     else:
-                        st.warning("No text detected in the image")
-
-                        
-            def get_download_link(data, filename):
-                """Generate a link to download data as a file."""
-                json_data = json.dumps(data)
-                b64 = base64.b64encode(json_data.encode()).decode()
-                return f'<a href="data:application/json;base64,{b64}" download="{filename}">Download JSON file</a>'
-
-            if 'translated_text' not in st.session_state:
-                st.session_state.translated_text = ""
-            if 'source_text' not in st.session_state:
-                st.session_state.source_text = ""
-
-            if st.button("Save Translation", key="save_translation"):
-                if st.session_state.translated_text and st.session_state.source_text:
-                    data = {
-                        "source_text": st.session_state.source_text,
-                        "translated_text": st.session_state.translated_text
-                    }
-                    download_link = get_download_link(data, "translated_text.json")
-                    st.markdown(download_link, unsafe_allow_html=True)
-                else:
-                    st.warning("No translated text to save")
+                        st.warning("No translated text to save")
+        except Exception as e:
+            st.error(f"Seems like there is a problem loading OCR model: {str(e)}. I am working on it.")
 if __name__ == "__main__":
     main()
