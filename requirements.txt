@@ -43,9 +43,6 @@ pydantic==2.10.5
 pydantic-settings==2.7.1
 pydantic_core==2.27.2
 pydeck==0.9.1
-pyparsing==3.2.1
-pypdfium2==4.30.0
-pywin32==307
 PyYAML==6.0.2
 requests==2.32.3
 safetensors==0.5.2
