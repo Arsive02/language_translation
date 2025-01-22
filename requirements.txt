@@ -46,7 +46,6 @@ pydeck==0.9.1
 pyparsing==3.2.1
 pypdfium2==4.30.0
 python-dotenv==1.0.1
-pytz==2024.2
 pywin32==307
 PyYAML==6.0.2
 referencing==0.36.1
