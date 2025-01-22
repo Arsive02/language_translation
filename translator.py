@@ -8,7 +8,7 @@ try:
     from surya.model.recognition.processor import load_processor as load_rec_processor
 except:
     st.error("Error loading OCR model. Working on it")
-    raise
+    pass
 import json
 import base64
 
@@ -279,5 +279,6 @@ def main():
                         st.warning("No translated text to save")
         except Exception as e:
             st.error(f"Seems like there is a problem loading OCR model: {str(e)}. I am working on it.")
+            pass 
 if __name__ == "__main__":
     main()
