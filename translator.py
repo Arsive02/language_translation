@@ -7,10 +7,17 @@ try:
     from surya.model.recognition.model import load_model as load_rec_model
     from surya.model.recognition.processor import load_processor as load_rec_processor
 except:
-    st.error("Error loading OCR model. Working on it")
     pass
 import json
 import base64
+
+
+# Page config
+st.set_page_config(
+    page_title="Universal Translator",
+    page_icon="🌎",
+    layout="wide"
+)
 
 def load_examples():
     with open("annotations/claude_data_extraction.json", "r") as f:
@@ -82,12 +89,6 @@ INDIVIDUAL_LANGUAGES = {
     'Russian': ('en', 'rus', '>>rus<<')
 }
 
-# Page config
-st.set_page_config(
-    page_title="Universal Translator",
-    page_icon="🌎",
-    layout="wide"
-)
 
 # Initialize session state
 if 'translation_models' not in st.session_state:
