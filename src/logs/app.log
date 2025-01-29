@@ -1,0 +1,67 @@
+2025-01-27 14:34:17,671 - main - INFO - Starting up translation service
+2025-01-27 14:34:40,499 - main - INFO - Shutting down translation service
+2025-01-27 14:35:01,774 - main - INFO - Starting up translation service
+2025-01-27 14:39:37,127 - main - INFO - Shutting down translation service
+2025-01-27 15:17:33,110 - main - INFO - Starting up translation service
+2025-01-27 15:18:27,490 - app.services.translator - ERROR - Error loading model helsinki-nmt-en-fra: 
+MarianTokenizer requires the SentencePiece library but it was not found in your environment. Checkout the instructions on the
+installation page of its repo: https://github.com/google/sentencepiece#installation and follow the ones
+that match your environment. Please note that you may need to restart your runtime after installation.
+
+2025-01-27 15:18:27,494 - app.services.translator - ERROR - Translation error: 
+MarianTokenizer requires the SentencePiece library but it was not found in your environment. Checkout the instructions on the
+installation page of its repo: https://github.com/google/sentencepiece#installation and follow the ones
+that match your environment. Please note that you may need to restart your runtime after installation.
+
+2025-01-27 15:18:27,494 - app.api.routes - ERROR - Translation failed: 
+MarianTokenizer requires the SentencePiece library but it was not found in your environment. Checkout the instructions on the
+installation page of its repo: https://github.com/google/sentencepiece#installation and follow the ones
+that match your environment. Please note that you may need to restart your runtime after installation.
+
+2025-01-27 15:18:46,445 - main - INFO - Shutting down translation service
+2025-01-27 15:19:08,902 - main - INFO - Starting up translation service
+2025-01-27 15:19:17,519 - app.services.translator - ERROR - Error loading model helsinki-nmt-en-fra: Helsinki-NLP/opus-mt-en-fra is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo either by logging in with `huggingface-cli login` or by passing `token=<your_token>`
+2025-01-27 15:19:17,520 - app.services.translator - ERROR - Translation error: Helsinki-NLP/opus-mt-en-fra is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo either by logging in with `huggingface-cli login` or by passing `token=<your_token>`
+2025-01-27 15:19:17,521 - app.api.routes - ERROR - Translation failed: Helsinki-NLP/opus-mt-en-fra is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo either by logging in with `huggingface-cli login` or by passing `token=<your_token>`
+2025-01-27 15:21:16,558 - main - INFO - Shutting down translation service
+2025-01-27 15:21:25,995 - main - INFO - Starting up translation service
+2025-01-27 15:21:30,271 - app.services.translator - ERROR - Error loading model helsinki-nmt-en-fra: Helsinki-NLP/opus-mt-en-fra is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo either by logging in with `huggingface-cli login` or by passing `token=<your_token>`
+2025-01-27 15:21:30,271 - app.services.translator - ERROR - Translation error: Helsinki-NLP/opus-mt-en-fra is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo either by logging in with `huggingface-cli login` or by passing `token=<your_token>`
+2025-01-27 15:21:30,271 - app.api.routes - ERROR - Translation failed: Helsinki-NLP/opus-mt-en-fra is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo either by logging in with `huggingface-cli login` or by passing `token=<your_token>`
+2025-01-27 15:22:00,359 - main - INFO - Shutting down translation service
+2025-01-27 15:22:08,358 - main - INFO - Starting up translation service
+2025-01-27 15:22:12,964 - main - INFO - Shutting down translation service
+2025-01-27 15:22:18,300 - main - INFO - Starting up translation service
+2025-01-27 15:22:21,441 - app.services.translator - ERROR - Error loading model helsinki-nmt-en-fra: Helsinki-NLP/opus-mt-en-fra is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo either by logging in with `huggingface-cli login` or by passing `token=<your_token>`
+2025-01-27 15:22:21,442 - app.services.translator - ERROR - Translation error: Helsinki-NLP/opus-mt-en-fra is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo either by logging in with `huggingface-cli login` or by passing `token=<your_token>`
+2025-01-27 15:22:21,442 - app.api.routes - ERROR - Translation failed: Helsinki-NLP/opus-mt-en-fra is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo either by logging in with `huggingface-cli login` or by passing `token=<your_token>`
+2025-01-27 15:22:51,249 - main - INFO - Shutting down translation service
+2025-01-27 15:23:25,788 - main - INFO - Starting up translation service
+2025-01-27 15:23:28,500 - app.services.translator - ERROR - Error loading model helsinki-nmt-en-fra: Helsinki-NLP/opus-mt-en-fra is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo either by logging in with `huggingface-cli login` or by passing `token=<your_token>`
+2025-01-27 15:23:28,501 - app.services.translator - ERROR - Translation error: Helsinki-NLP/opus-mt-en-fra is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo either by logging in with `huggingface-cli login` or by passing `token=<your_token>`
+2025-01-27 15:23:28,501 - app.api.routes - ERROR - Translation failed: Helsinki-NLP/opus-mt-en-fra is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo either by logging in with `huggingface-cli login` or by passing `token=<your_token>`
+2025-01-27 15:24:46,633 - app.api.routes - ERROR - Translation failed: None
+2025-01-27 15:25:01,595 - app.api.routes - ERROR - Translation failed: None
+2025-01-27 15:25:04,861 - app.api.routes - ERROR - Translation failed: None
+2025-01-27 15:25:10,084 - app.api.routes - ERROR - Translation failed: None
+2025-01-27 15:26:00,384 - app.services.translator - ERROR - Error loading model helsinki-nmt-en-dra: MarianMTModel.__init__() got an unexpected keyword argument 'from_pt'
+2025-01-27 15:26:00,384 - app.services.translator - ERROR - Translation error: MarianMTModel.__init__() got an unexpected keyword argument 'from_pt'
+2025-01-27 15:26:00,385 - app.api.routes - ERROR - Translation failed: MarianMTModel.__init__() got an unexpected keyword argument 'from_pt'
+2025-01-27 15:26:23,048 - main - INFO - Shutting down translation service
+2025-01-27 15:26:32,022 - main - INFO - Starting up translation service
+2025-01-27 15:26:35,460 - app.services.translator - INFO - Loaded translation model: helsinki-nmt-en-dra
+2025-01-27 15:26:35,620 - app.services.translator - INFO - Successfully translated text from en to dra
+2025-01-27 15:38:57,915 - main - INFO - Starting up translation service
+2025-01-27 16:30:23,465 - main - INFO - Starting up translation service
