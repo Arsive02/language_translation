@@ -1,15 +1,18 @@
-from flask import Flask, render_template, request, jsonify
-from transformers import MarianMTModel, MarianTokenizer
-from PIL import Image
-from surya.recognition import RecognitionPredictor
-from surya.detection import DetectionPredictor
+# Standard library imports
 import logging
 import os
-from werkzeug.utils import secure_filename
+import re
+from flask import Flask, render_template, request, jsonify
+from transformers import MarianMTModel, MarianTokenizer
+
+from surya.recognition import RecognitionPredictor
+from surya.detection import DetectionPredictor
+from document_processor import DocumentProcessor
+from text_chunker import TextChunker
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -61,7 +64,6 @@ INDIVIDUAL_LANGUAGES = {
     'Russian': ('en', 'rus', '>>rus<<')
 }
 
-# Initialize OCR and translation models
 class TranslationService:
     def __init__(self):
         self.models = {}
@@ -69,8 +71,52 @@ class TranslationService:
         self.recognition_predictor = RecognitionPredictor()
         self.detection_predictor = DetectionPredictor()
         self.langs = ["en"]
+        self.document_processor = DocumentProcessor(
+            self.recognition_predictor,
+            self.detection_predictor,
+            self.langs
+        )
+        self.text_chunker = TextChunker(max_tokens=450, overlap_tokens=50)
+
+    def translate_text(self, text, source_lang_info, target_lang_info):
+        """Translate text using chunking for long texts."""
+        try:
+            source_lang, target_lang = source_lang_info[1], target_lang_info[1]
+            target_token = target_lang_info[2]
+            
+            translation_model = self.get_model(source_lang, target_lang)
+            if not translation_model:
+                return "Error: Could not load translation model"
+            
+            tokenizer = translation_model['tokenizer']
+            model = translation_model['model']
+
+            # Get chunks using TextChunker
+            chunks = self.text_chunker.create_chunks(text)
+            translated_chunks = []
+
+            # Translate each chunk
+            for chunk in chunks:
+                try:
+                    chunk_text = f"{target_token} {chunk.text}" if target_token else chunk.text
+                    inputs = tokenizer(chunk_text, return_tensors="pt", padding=True)
+                    translated = model.generate(**inputs)
+                    translated_text = tokenizer.decode(translated[0], skip_special_tokens=True)
+                    translated_chunks.append(translated_text)
+                except Exception as e:
+                    logger.error(f"Error translating chunk {chunk.index}: {str(e)}")
+                    translated_chunks.append(f"[Error translating part {chunk.index + 1}]")
+
+            # Combine translations using TextChunker
+            final_translation = self.text_chunker.combine_translations(text, chunks, translated_chunks)
+            return re.sub(r'\s+', ' ', final_translation).strip()
+
+        except Exception as e:
+            logger.error(f"Translation error: {str(e)}")
+            return f"Translation error: {str(e)}"
 
     def get_model(self, source_lang, target_lang):
+        """Get or load translation model."""
         model_key = f"helsinki-nmt-{source_lang}-{target_lang}"
         if model_key not in self.models:
             try:
@@ -86,51 +132,19 @@ class TranslationService:
             'model': self.models[model_key]
         }
 
-    def translate_text(self, text, source_lang_info, target_lang_info):
+    def process_document(self, file_data: bytes, filename: str, use_ocr: bool = False):
+        """Process document using DocumentProcessor."""
         try:
-            source_lang, target_lang = source_lang_info[1], target_lang_info[1]
-            target_token = target_lang_info[2]
-            
-            translation = self.get_model(source_lang, target_lang)
-            if not translation:
-                return "Error: Could not load translation model"
-                
-            tokenizer = translation['tokenizer']
-            model = translation['model']
-            
-            if target_token:
-                text = f"{target_token} {text}"
-            
-            inputs = tokenizer(text, return_tensors="pt", padding=True)
-            translated = model.generate(**inputs)
-            translated_text = tokenizer.decode(translated[0], skip_special_tokens=True)
-            
-            return translated_text
-        except Exception as e:
-            logger.error(f"Translation error: {str(e)}")
-            return f"Translation error: {str(e)}"
-
-    def process_image(self, image_path):
-        try:
-            image = Image.open(image_path)
-            predictions = self.recognition_predictor(
-                [image], 
-                [self.langs], 
-                self.detection_predictor
+            result = self.document_processor.process_document(
+                file_data=file_data,
+                filename=filename,
+                save_images=False, 
+                use_ocr=use_ocr
             )
-            
-            if predictions and len(predictions) > 0:
-                # Get all text lines from the first page
-                extracted_text = " ".join(
-                    line.text for line in predictions[0].text_lines
-                    if hasattr(line, 'text') and line.text.strip()
-                )
-                return extracted_text.strip()
-            return ""
-        
+            return result.get('combined_text', '')
         except Exception as e:
-            logger.error(f"OCR error: {str(e)}")
-            return ""
+            logger.error(f"Document processing error: {str(e)}")
+            return None
 
 translation_service = TranslationService()
 
@@ -186,29 +200,22 @@ def process_document():
         if file.filename == '':
             return jsonify({'success': False, 'error': 'No file selected'})
 
-        if file:
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
+        use_ocr = request.form.get('use_ocr', 'false').lower() == 'true'
+        source_lang = request.form.get('source_lang', 'English')
+        target_lang = request.form.get('target_lang', '')
+        is_family = request.form.get('is_family') == 'true'
+        family_name = request.form.get('family_name', '')
 
-            # Extract text from image
-            extracted_text = translation_service.process_image(filepath)
-            
-            # Clean up uploaded file
-            os.remove(filepath)
+        # Process document
+        file_data = file.read()
+        extracted_text = translation_service.process_document(
+            file_data=file_data,
+            filename=file.filename,
+            use_ocr=use_ocr
+        )
 
-            if not extracted_text:
-                return jsonify({
-                    'success': False,
-                    'error': 'No text detected in the image'
-                })
-
-            # Translate the extracted text
-            source_lang = request.form.get('source_lang', 'English')
-            target_lang = request.form.get('target_lang', '')
-            is_family = request.form.get('is_family') == 'true'
-            family_name = request.form.get('family_name', '')
-
+        if extracted_text:
+            # Handle translation
             source_lang_info = INDIVIDUAL_LANGUAGES[source_lang]
             if is_family:
                 target_lang_info = LANGUAGE_FAMILIES[family_name][target_lang]
@@ -223,8 +230,15 @@ def process_document():
 
             return jsonify({
                 'success': True,
-                'extracted_text': extracted_text,
-                'translated_text': translated_text
+                'result': {
+                    'extracted_text': extracted_text,
+                    'translated_text': translated_text
+                }
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': "No text could be extracted from the document"
             })
 
     except Exception as e:
