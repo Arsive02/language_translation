@@ -9,6 +9,7 @@ from surya.recognition import RecognitionPredictor
 from surya.detection import DetectionPredictor
 from document_processor import DocumentProcessor
 from text_chunker import TextChunker
+from lt_logger import TranslationLogger
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -22,7 +23,10 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
 logger = logging.getLogger(__name__)
+
+translation_logger = TranslationLogger(log_dir="translation_logs")
 
 # Language configurations
 LANGUAGE_FAMILIES = {
@@ -34,21 +38,21 @@ LANGUAGE_FAMILIES = {
     },
     'Slavic': {
         'Russian': ('en', 'ru', '>>rus<<'),
-        'Polish': ('eng', 'pol', '>>pol<<'),
+        'Polish': ('en', 'pl', '>>pol<<'),
         'Czech': ('en', 'cs', '>>ces<<'),
         'Slovak': ('en', 'sk', '>>sk<<')
     },
     'Germanic': {
-        'German': ('en', 'deu', '>>deu<<'),
-        'Dutch': ('en', 'nld', '>>nld<<'),
+        'German': ('en', 'de', '>>deu<<'),
+        'Dutch': ('en', 'nl', '>>nld<<'),
         'Swedish': ('en', 'swe', '>>swe<<'),
         'Danish': ('en', 'dan', '>>dan<<')
     },
     'Romance': {
-        'Spanish': ('eng', 'spa', '>>spa<<'),
+        'Spanish': ('en', 'es', '>>spa<<'),
         'French': ('en', 'fr', '>>fra<<'),
-        'Italian': ('eng', 'ita', '>>ita<<'),
-        'Portuguese': ('eng', 'por', '>>por<<')
+        'Italian': ('en', 'it', '>>ita<<'),
+        'Portuguese': ('en', 'pt', '>>por<<')
     }
 }
 
@@ -56,12 +60,12 @@ INDIVIDUAL_LANGUAGES = {
     'English': ('en', 'en', '>>eng<<'),
     'Spanish': ('en', 'es', '>>spa<<'),
     'French': ('en', 'fr', '>>fra<<'),
-    'German': ('en', 'deu', '>>deu<<'),
-    'Italian': ('en', 'ita', '>>ita<<'),
-    'Portuguese': ('en', 'por', '>>por<<'),
-    'Dutch': ('en', 'nld', '>>nld<<'),
-    'Polish': ('en', 'pol', '>>pol<<'),
-    'Russian': ('en', 'rus', '>>rus<<')
+    'German': ('en', 'de', '>>deu<<'),
+    'Italian': ('en', 'it', '>>ita<<'),
+    'Portuguese': ('en', 'pt', '>>por<<'),
+    'Dutch': ('en', 'nl', '>>nld<<'),
+    'Polish': ('en', 'pl', '>>pol<<'),
+    'Russian': ('en', 'ru', '>>rus<<')
 }
 
 class TranslationService:
@@ -104,7 +108,7 @@ class TranslationService:
                     translated_text = tokenizer.decode(translated[0], skip_special_tokens=True)
                     translated_chunks.append(translated_text)
                 except Exception as e:
-                    logger.error(f"Error translating chunk {chunk.index}: {str(e)}")
+                    logger.error(f"Error translating part {chunk.index + 1}: {str(e)}")
                     translated_chunks.append(f"[Error translating part {chunk.index + 1}]")
 
             # Combine translations using TextChunker
@@ -192,23 +196,32 @@ def translate():
             target_lang_info
         )
 
+        translation_logger.log_translation(
+            source_text=text,
+            translated_text=translated_text,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            is_family=is_family,
+            family_name=family_name,
+            success=True
+        )
+
         return jsonify({
             'success': True,
             'translated_text': translated_text
         })
 
-    except ValueError as ve:
-        logger.error(f"Validation error: {str(ve)}")
-        return jsonify({
-            'success': False,
-            'error': str(ve)
-        })
-    except Exception as e:
-        logger.error(f"Translation failed: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f"Translation failed: {str(e)}"
-        })
+    except (ValueError, Exception) as e:
+        translation_logger.log_translation(
+            source_text=text,
+            translated_text="",
+            source_lang=source_lang, 
+            target_lang=target_lang,
+            is_family=is_family,
+            family_name=family_name,
+            success=False,
+            error_message=str(e)
+        )
 
 @app.route('/process-document', methods=['POST'])
 def process_document():
@@ -248,6 +261,18 @@ def process_document():
                 target_lang_info
             )
 
+            translation_logger.log_translation(
+            source_text=extracted_text,
+            translated_text=translated_text,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            is_family=is_family,
+            family_name=family_name,
+            extracted_text=extracted_text,
+            file_name=file.filename,
+            success=True
+        )
+
             return jsonify({
                 'success': True,
                 'result': {
@@ -256,17 +281,64 @@ def process_document():
                 }
             })
         else:
+            translation_logger.log_translation(
+                source_text="",
+                translated_text="",
+                source_lang=source_lang,
+                target_lang=target_lang,
+                is_family=is_family,
+                family_name=family_name,
+                extracted_text="",
+                file_name=file.filename,
+                success=False,
+                error_message="No text extracted"
+            )
             return jsonify({
                 'success': False,
                 'error': "No text could be extracted from the document"
             })
 
     except Exception as e:
-        logger.error(f"Document processing failed: {str(e)}")
+        translation_logger.log_translation(
+            source_text="",
+            translated_text="",
+            source_lang=source_lang,
+            target_lang=target_lang,
+            is_family=is_family,
+            family_name=family_name,
+            file_name=file.filename if file else None,
+            success=False,
+            error_message=str(e)
+        )
         return jsonify({
             'success': False,
             'error': str(e)
         })
+    
+@app.route('/logs', methods=['GET'])
+def get_logs():
+    date = request.args.get('date')
+    logs = translation_logger.get_logs(date)
+    return jsonify(logs)
+
+@app.route('/logs/search', methods=['GET'])
+def search_logs():
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    translation_type = request.args.get('type')
+    source_lang = request.args.get('source_lang')
+    target_lang = request.args.get('target_lang')
+    success_only = request.args.get('success_only', 'false').lower() == 'true'
+
+    logs = translation_logger.search_logs(
+        start_date=start_date,
+        end_date=end_date,
+        translation_type=translation_type,
+        source_lang=source_lang,
+        target_lang=target_lang,
+        success_only=success_only
+    )
+    return jsonify(logs)
 
 if __name__ == '__main__':
-    app.run(port=8080, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
