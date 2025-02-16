@@ -1,15 +1,19 @@
 import re
+import logging
+import nltk
+
 from typing import List, Optional
 from dataclasses import dataclass
-import logging
 from nltk.tokenize import sent_tokenize
-import nltk
+from tqdm import tqdm
 
 # Ensure NLTK data is downloaded
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
     nltk.download('punkt')
+
+nltk.download('punkt_tab')
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +160,8 @@ class TextChunker:
         else:
             paragraphs = [text]
             
-        for para in paragraphs:
+        # Add progress bar for paragraph processing
+        for para in tqdm(paragraphs, desc="Processing paragraphs"):
             if not para.strip():
                 continue
                 

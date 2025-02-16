@@ -4,6 +4,7 @@ import os
 import re
 from flask import Flask, render_template, request, jsonify
 from transformers import MarianMTModel, MarianTokenizer
+from tqdm import tqdm
 
 from surya.recognition import RecognitionPredictor
 from surya.detection import DetectionPredictor
@@ -100,7 +101,7 @@ class TranslationService:
             translated_chunks = []
 
             # Translate each chunk
-            for chunk in chunks:
+            for chunk in tqdm(chunks, desc="Translating chunks", unit="chunk"):
                 try:
                     chunk_text = f"{target_token} {chunk.text}" if target_token else chunk.text
                     inputs = tokenizer(chunk_text, return_tensors="pt", padding=True)
