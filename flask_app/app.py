@@ -33,10 +33,10 @@ LANGUAGE_FAMILIES = {
         'Malayalam': ('en', 'dra', '>>mal<<')
     },
     'Slavic': {
-        'Russian': ('en', 'rus', '>>rus<<'),
-        'Polish': ('en', 'pol', '>>pol<<'),
-        'Czech': ('en', 'ces', '>>ces<<'),
-        'Slovak': ('en', 'slk', '>>slk<<')
+        'Russian': ('en', 'ru', '>>rus<<'),
+        'Polish': ('eng', 'pol', '>>pol<<'),
+        'Czech': ('en', 'cs', '>>ces<<'),
+        'Slovak': ('en', 'sk', '>>sk<<')
     },
     'Germanic': {
         'German': ('en', 'deu', '>>deu<<'),
@@ -46,7 +46,7 @@ LANGUAGE_FAMILIES = {
     },
     'Romance': {
         'Spanish': ('eng', 'spa', '>>spa<<'),
-        'French': ('eng', 'fra', '>>fra<<'),
+        'French': ('en', 'fr', '>>fra<<'),
         'Italian': ('eng', 'ita', '>>ita<<'),
         'Portuguese': ('eng', 'por', '>>por<<')
     }
@@ -55,7 +55,7 @@ LANGUAGE_FAMILIES = {
 INDIVIDUAL_LANGUAGES = {
     'English': ('en', 'en', '>>eng<<'),
     'Spanish': ('en', 'es', '>>spa<<'),
-    'French': ('eng', 'fra', '>>fra<<'),
+    'French': ('en', 'fr', '>>fra<<'),
     'German': ('en', 'deu', '>>deu<<'),
     'Italian': ('en', 'ita', '>>ita<<'),
     'Portuguese': ('en', 'por', '>>por<<'),
@@ -163,13 +163,27 @@ def translate():
         text = data.get('text', '')
         source_lang = data.get('source_lang', 'English')
         target_lang = data.get('target_lang', '')
-        is_family = data.get('is_family') == 'true'
+        is_family = str(data.get('is_family')).lower() == 'true'
         family_name = data.get('family_name', '')
 
+        # Validate source language
+        if source_lang not in INDIVIDUAL_LANGUAGES:
+            raise ValueError(f"Invalid source language: {source_lang}")
+        
         source_lang_info = INDIVIDUAL_LANGUAGES[source_lang]
+        
+        # Handle language family translation
         if is_family:
+            if family_name not in LANGUAGE_FAMILIES:
+                raise ValueError(f"Invalid language family: {family_name}")
+            if target_lang not in LANGUAGE_FAMILIES[family_name]:
+                raise ValueError(f"Invalid target language {target_lang} for family {family_name}")
             target_lang_info = LANGUAGE_FAMILIES[family_name][target_lang]
         else:
+            if target_lang not in INDIVIDUAL_LANGUAGES:
+                raise ValueError(f"Invalid target language: {target_lang}")
+            if target_lang == source_lang:
+                raise ValueError("Source and target languages cannot be the same")
             target_lang_info = INDIVIDUAL_LANGUAGES[target_lang]
 
         translated_text = translation_service.translate_text(
@@ -183,11 +197,17 @@ def translate():
             'translated_text': translated_text
         })
 
+    except ValueError as ve:
+        logger.error(f"Validation error: {str(ve)}")
+        return jsonify({
+            'success': False,
+            'error': str(ve)
+        })
     except Exception as e:
         logger.error(f"Translation failed: {str(e)}")
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': f"Translation failed: {str(e)}"
         })
 
 @app.route('/process-document', methods=['POST'])
@@ -249,4 +269,4 @@ def process_document():
         })
 
 if __name__ == '__main__':
-    app.run()
+    app.run(port=8080, debug=True)

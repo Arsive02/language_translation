@@ -8,8 +8,8 @@
     <script src="https://unpkg.com/alpinejs" defer></script>
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
 </head>
-<body class="bg-gray-50">
-    <div class="container mx-auto p-4 max-w-4xl" x-data="{
+<body class="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
+    <div class="container mx-auto p-4 max-w-5xl" x-data="{
         activeTab: 'text',
         sourceText: '',
         translatedText: '',
@@ -23,6 +23,30 @@
         error: '',
         extractedText: '',
         useOcr: false,
+        showSourceTextPreview: true,
+
+        clearTargetSelections() {
+            this.targetLang = '';
+            this.targetFamily = '';
+        },
+
+        init() {
+            // Initialize with default values
+            this.isFamily = false;
+            this.targetFamily = '';
+            this.targetLang = '';
+
+            this.$watch('isFamily', value => {
+                this.clearTargetSelections();
+                if (!value) {
+                    this.targetFamily = '';
+                }
+            });
+
+            this.$watch('targetFamily', value => {
+                this.targetLang = '';
+            });
+        },
 
         async handleTextTranslation() {
             if (!this.sourceText || !this.targetLang) return;
@@ -101,192 +125,252 @@
             }
         }
     }">
-        <h1 class="text-3xl font-bold text-center mb-8">Universal Translator</h1>
-        
-        <!-- Language Selection -->
-        <div class="bg-white rounded-lg shadow-sm mb-6 p-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Source Language -->
-                <div>
-                    <label class="block text-sm font-medium mb-2">Source Language</label>
-                    <select x-model="sourceLang" class="w-full rounded-md border border-gray-300 p-2">
-                        {% for lang in individual_languages %}
-                        <option value="{{ lang }}">{{ lang }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                
-                <!-- Translation Type -->
-                <div>
-                    <label class="block text-sm font-medium mb-2">Translation Type</label>
-                    <select x-model="isFamily" class="w-full rounded-md border border-gray-300 p-2">
-                        <option value="false">Individual Language</option>
-                        <option value="true">Language Family</option>
-                    </select>
-                </div>
+        <div class="max-w-5xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-blue-600 to-blue-800 p-6">
+                <h1 class="text-3xl font-bold text-white text-center">Universal Translator</h1>
+                <p class="text-blue-100 text-center mt-2">Translate text and documents across multiple languages</p>
+            </div>
 
-                <!-- Family Selection (Conditional) -->
-                <template x-if="isFamily">
-                    <div>
-                        <label class="block text-sm font-medium mb-2">Language Family</label>
-                        <select x-model="targetFamily" class="w-full rounded-md border border-gray-300 p-2">
-                            <option value="">Select family</option>
-                            {% for family in language_families %}
-                            <option value="{{ family }}">{{ family }}</option>
+            <!-- Language Selection Panel -->
+            <div class="bg-gray-50 p-6 border-b">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Source Language -->
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-gray-700">Source Language</label>
+                        <select 
+                            x-model="sourceLang" 
+                            class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            {% for lang in individual_languages if lang == 'English' %}
+                                <option value="{{ lang }}">{{ lang }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                </template>
 
-                <!-- Target Language -->
-                <div>
-                    <label class="block text-sm font-medium mb-2">Target Language</label>
-                    <select x-model="targetLang" class="w-full rounded-md border border-gray-300 p-2">
-                        <option value="">Select language</option>
-                        <template x-if="!isFamily">
-                            {% for lang in individual_languages %}
-                            <option value="{{ lang }}">{{ lang }}</option>
+                    <!-- Translation Type -->
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-gray-700">Translation Type</label>
+                        <select 
+                            x-model.boolean="isFamily" 
+                            @change="clearTargetSelections()"
+                            class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option :value="false">Individual Language</option>
+                            <option :value="true">Language Family</option>
+                        </select>
+                    </div>
+
+                    <!-- Language Family (Conditional) -->
+                    <div class="space-y-2" x-show="isFamily === true" x-transition x-cloak>
+                        <label class="block text-sm font-medium text-gray-700">Language Family</label>
+                        <select 
+                            x-model="targetFamily" 
+                            class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">Select Family</option>
+                            {% for family in language_families.keys() %}
+                                <option value="{{ family }}">{{ family }}</option>
                             {% endfor %}
-                        </template>
-                        <template x-if="isFamily && targetFamily">
-                            {% for family, languages in language_families.items() %}
-                            <template x-if="targetFamily === '{{ family }}'">
-                                {% for lang in languages %}
-                                <option value="{{ lang }}">{{ lang }}</option>
-                                {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Target Language -->
+                    <div class="space-y-2">
+                        <label class="block text-sm font-medium text-gray-700">Target Language</label>
+                        <select 
+                            x-model="targetLang" 
+                            class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                            <option value="">Select Language</option>
+                            <!-- Individual Languages -->
+                            <template x-if="!isFamily">
+                                <optgroup label="Individual Languages">
+                                    {% for lang, info in individual_languages.items() %}
+                                        {% if lang != 'English' %}
+                                            <option value="{{ lang }}">{{ lang }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </optgroup>
                             </template>
+                            <!-- Family Languages -->
+                            {% for family, languages in language_families.items() %}
+                                <template x-if="isFamily && targetFamily === '{{ family }}'">
+                                    <optgroup label="{{ family }} Languages">
+                                        {% for lang in languages.keys() %}
+                                            <option value="{{ lang }}">{{ lang }}</option>
+                                        {% endfor %}
+                                    </optgroup>
+                                </template>
                             {% endfor %}
-                        </template>
-                    </select>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tabs -->
-        <div class="mb-6">
-            <div class="border-b border-gray-200">
-                <nav class="-mb-px flex" aria-label="Tabs">
-                    <button 
-                        @click="activeTab = 'text'"
-                        :class="{'border-blue-500 text-blue-600': activeTab === 'text',
-                                'border-transparent text-gray-500': activeTab !== 'text'}"
-                        class="w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm">
-                        Text Translation
-                    </button>
-                    <button 
-                        @click="activeTab = 'document'"
-                        :class="{'border-blue-500 text-blue-600': activeTab === 'document',
-                                'border-transparent text-gray-500': activeTab !== 'document'}"
-                        class="w-1/2 py-4 px-1 text-center border-b-2 font-medium text-sm">
-                        Document Translation
-                    </button>
-                </nav>
-            </div>
-        </div>
-
-        <!-- Text Translation Tab -->
-        <div x-show="activeTab === 'text'" class="bg-white rounded-lg shadow-sm p-6">
-            <div class="space-y-6">
-                <div>
-                    <label class="block text-sm font-medium mb-2">Source Text</label>
-                    <textarea
-                        x-model="sourceText"
-                        placeholder="Enter text to translate..."
-                        class="w-full rounded-md border border-gray-300 p-2 min-h-[8rem]"
-                    ></textarea>
-                </div>
-
-                <button 
-                    @click="handleTextTranslation"
-                    :disabled="!sourceText || !targetLang || loading"
-                    class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
-                    <span x-text="loading ? 'Processing...' : 'Translate'"></span>
-                </button>
-
-                <template x-if="translatedText">
-                    <div>
-                        <label class="block text-sm font-medium mb-2">Translation</label>
-                        <textarea
-                            x-model="translatedText"
-                            readonly
-                            class="w-full rounded-md border border-gray-300 p-2 min-h-[8rem] bg-gray-50"
-                        ></textarea>
+                        </select>
                     </div>
-                </template>
+                </div>
             </div>
-        </div>
-
-        <!-- Document Translation Tab -->
-        <div x-show="activeTab === 'document'" class="bg-white rounded-lg shadow-sm p-6">
-            <div class="space-y-6">
-                <!-- OCR Option -->
-                <div>
-                    <label class="flex items-center space-x-2">
-                        <input
-                            type="checkbox"
-                            x-model="useOcr"
-                            class="rounded border-gray-300"
-                        />
-                        <span class="text-sm text-gray-700">Use OCR (for scanned documents)</span>
-                    </label>
+            <!-- Main Content Area -->
+            <div class="p-6">
+                <!-- Tabs -->
+                <div class="border-b border-gray-200 mb-6">
+                    <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                        <button 
+                            @click="activeTab = 'text'"
+                            :class="{'border-blue-500 text-blue-600': activeTab === 'text',
+                                    'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'text'}"
+                            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                            Text Translation
+                        </button>
+                        <button 
+                            @click="activeTab = 'document'"
+                            :class="{'border-blue-500 text-blue-600': activeTab === 'document',
+                                    'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'document'}"
+                            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                            Document Translation
+                        </button>
+                    </nav>
                 </div>
 
-                <!-- File Upload -->
-                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6">
-                    <input
-                        type="file"
-                        @change="handleFileChange"
-                        accept="image/*,.pdf"
-                        class="hidden"
-                        id="file-upload"
-                    />
-                    <label for="file-upload" class="cursor-pointer block text-center">
-                        <span class="text-blue-600 hover:text-blue-500">Upload a file</span>
-                        <p class="text-xs text-gray-500 mt-2">PDF or Image files</p>
-                    </label>
+                <!-- Text Translation Tab -->
+                <div x-show="activeTab === 'text'" x-transition>
+                    <div class="space-y-6">
+                        <!-- Source Text Input -->
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">Source Text</label>
+                            <div class="relative">
+                                <textarea
+                                    x-model="sourceText"
+                                    placeholder="Enter text to translate..."
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 min-h-[12rem] resize-y"
+                                ></textarea>
+                                <div class="absolute bottom-2 right-2 text-sm text-gray-500" x-show="sourceText">
+                                    <span x-text="sourceText.length"></span> characters
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Translation Button -->
+                        <button 
+                            @click="handleTextTranslation"
+                            :disabled="!sourceText || !targetLang || loading"
+                            class="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg py-3 px-4 font-medium shadow-sm hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span x-text="loading ? 'Translating...' : 'Translate'"></span>
+                        </button>
+
+                        <!-- Translation Result -->
+                        <div x-show="translatedText" x-transition>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Translation</label>
+                            <div class="relative bg-gray-50 rounded-lg border border-gray-300 p-4">
+                                <pre class="whitespace-pre-wrap font-sans text-gray-900" x-text="translatedText"></pre>
+                                <button 
+                                    @click="navigator.clipboard.writeText(translatedText)"
+                                    class="absolute top-2 right-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                                    title="Copy to clipboard">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <template x-if="fileName">
-                    <p class="text-sm text-gray-600" x-text="fileName"></p>
-                </template>
+                <!-- Document Translation Tab -->
+                <div x-show="activeTab === 'document'" x-transition>
+                    <div class="space-y-6">
+                        <!-- OCR Option -->
+                        <div class="flex items-center space-x-2">
+                            <input
+                                type="checkbox"
+                                x-model="useOcr"
+                                id="use-ocr"
+                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <label for="use-ocr" class="text-sm text-gray-700">Use OCR (Optical Character Recognition) for scanned documents</label>
+                        </div>
 
-                <button 
-                    @click="handleDocumentTranslation"
-                    :disabled="!file || !targetLang || loading"
-                    class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
-                    <span x-text="loading ? 'Processing...' : 'Translate Document'"></span>
-                </button>
+                        <!-- File Upload Area -->
+                        <div 
+                            class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center"
+                            @dragover.prevent="$el.classList.add('border-blue-500')"
+                            @dragleave.prevent="$el.classList.remove('border-blue-500')"
+                            @drop.prevent="$el.classList.remove('border-blue-500'); handleFileChange($event)">
+                            <input
+                                type="file"
+                                @change="handleFileChange"
+                                accept="application/pdf,image/*"
+                                class="hidden"
+                                id="file-upload"
+                            />
+                            <label for="file-upload" class="cursor-pointer">
+                                <div class="space-y-2">
+                                    <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4-4m4-12h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                    <div class="text-blue-600 hover:text-blue-500">
+                                        <span class="font-medium">Upload a file</span>
+                                        <span class="text-gray-500"> or drag and drop</span>
+                                    </div>
+                                    <p class="text-xs text-gray-500">PDF or Image files (PNG, JPG, JPEG, TIFF, BMP)</p>
+                                </div>
+                            </label>
+                        </div>
 
-                <template x-if="extractedText">
-                    <div>
-                        <label class="block text-sm font-medium mb-2">Extracted Text</label>
-                        <textarea
-                            x-model="extractedText"
-                            readonly
-                            class="w-full rounded-md border border-gray-300 p-2 min-h-[8rem] bg-gray-50 mb-4"
-                        ></textarea>
+                        <!-- Selected File Name -->
+                        <div x-show="fileName" class="flex items-center space-x-2 text-sm text-gray-600">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span x-text="fileName"></span>
+                        </div>
+
+                        <!-- Translation Button -->
+                        <button 
+                            @click="handleDocumentTranslation"
+                            :disabled="!file || !targetLang || loading"
+                            class="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg py-3 px-4 font-medium shadow-sm hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span x-text="loading ? 'Processing...' : 'Translate Document'"></span>
+                        </button>
+
+                        <!-- Source Text Preview -->
+                        <div x-show="extractedText && showSourceTextPreview" x-transition>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-sm font-medium text-gray-700">Extracted Text</label>
+                                <button 
+                                    @click="showSourceTextPreview = false"
+                                    class="text-sm text-gray-500 hover:text-gray-700 focus:outline-none">
+                                    Hide
+                                </button>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg border border-gray-300 p-4">
+                                <pre class="whitespace-pre-wrap font-sans text-gray-900" x-text="extractedText"></pre>
+                            </div>
+                        </div>
+
+                        <!-- Translation Result -->
+                        <div x-show="translatedText" x-transition>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Translation</label>
+                            <div class="relative bg-gray-50 rounded-lg border border-gray-300 p-4">
+                                <pre class="whitespace-pre-wrap font-sans text-gray-900" x-text="translatedText"></pre>
+                                <button 
+                                    @click="navigator.clipboard.writeText(translatedText)"
+                                    class="absolute top-2 right-2 text-gray-500 hover:text-gray-700 focus:outline-none"
+                                    title="Copy to clipboard">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                </template>
+                </div>
 
-                <template x-if="translatedText">
-                    <div>
-                        <label class="block text-sm font-medium mb-2">Translation</label>
-                        <textarea
-                            x-model="translatedText"
-                            readonly
-                            class="w-full rounded-md border border-gray-300 p-2 min-h-[8rem] bg-gray-50"
-                        ></textarea>
-                    </div>
-                </template>
+                <!-- Error Message -->
+                <div 
+                    x-show="error" 
+                    x-transition
+                    class="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                    <p x-text="error"></p>
+                </div>
             </div>
         </div>
-
-        <!-- Error Message -->
-        <template x-if="error">
-            <div class="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                <span x-text="error"></span>
-            </div>
-        </template>
     </div>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
 </body>
 </html>

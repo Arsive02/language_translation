@@ -100,7 +100,6 @@ class DocumentProcessor:
                 'size': (page.rect.width, page.rect.height)
             })
         
-        print(results)
         return results
 
     def process_document(
