@@ -19,10 +19,8 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-# Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -133,7 +131,6 @@ class TranslationService:
     def _load_model(self):
         """Load the MADLAD-400 3B translation model."""
         try:
-            # Use the Google MADLAD-400 3B MT model
             model_name = "google/madlad400-3b-mt"
             
             logger.info(f"Loading translation model: {model_name}")
@@ -141,14 +138,12 @@ class TranslationService:
             
             # Use torch_dtype=torch.bfloat16 if available for faster inference
             if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8:
-                # Use bfloat16 for Ampere (RTX 30xx) or newer GPUs
                 logger.info("Using bfloat16 precision for model loading")
                 self.model = T5ForConditionalGeneration.from_pretrained(
                     model_name, 
                     torch_dtype=torch.bfloat16
                 )
             else:
-                # Fallback to float16 or float32
                 dtype = torch.float16 if torch.cuda.is_available() else torch.float32
                 logger.info(f"Using {dtype} precision for model loading")
                 self.model = T5ForConditionalGeneration.from_pretrained(
@@ -156,7 +151,6 @@ class TranslationService:
                     torch_dtype=dtype
                 )
             
-            # Move model to device (GPU if available)
             self.model.to(self.device)
             
             logger.info(f"Model loaded successfully on {self.device}")
@@ -180,7 +174,6 @@ class TranslationService:
                     # This prepends the target language token to the source text
                     input_text = f"<2{target_lang_code}> {chunk.text}"
                     
-                    # Tokenize input
                     inputs = self.tokenizer(
                         input_text, 
                         return_tensors="pt", 
@@ -189,10 +182,8 @@ class TranslationService:
                         max_length=512
                     )
                     
-                    # Move inputs to device
                     inputs = {k: v.to(self.device) for k, v in inputs.items()}
                     
-                    # Generate translation
                     with torch.no_grad():
                         translated = self.model.generate(
                             **inputs,
@@ -201,7 +192,6 @@ class TranslationService:
                             early_stopping=True
                         )
                     
-                    # Decode translation
                     translated_text = self.tokenizer.batch_decode(
                         translated, 
                         skip_special_tokens=True
