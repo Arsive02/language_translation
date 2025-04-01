@@ -60,6 +60,7 @@ class TranslationLogger:
                        family_name: Optional[str] = None,
                        extracted_text: Optional[str] = None,
                        file_name: Optional[str] = None,
+                       translation_type: str = "text",
                        success: bool = True,
                        error_message: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -74,6 +75,7 @@ class TranslationLogger:
             family_name (Optional[str]): Name of language family if applicable
             extracted_text (Optional[str]): Text extracted from document if applicable
             file_name (Optional[str]): Name of uploaded file if applicable
+            translation_type (str): Type of translation ('text' or 'document' or 'html')
             success (bool): Whether translation was successful
             error_message (Optional[str]): Error message if translation failed
             
@@ -90,6 +92,7 @@ class TranslationLogger:
             "language_family": family_name if is_family else None,
             "source_text": source_text,
             "translated_text": translated_text,
+            "translation_type": translation_type,
             "success": success,
             "error_message": error_message
         }

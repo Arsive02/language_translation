@@ -2,8 +2,10 @@
 import logging
 import os
 import re
+import torch
 from flask import Flask, render_template, request, jsonify
-from transformers import MarianMTModel, MarianTokenizer
+from transformers import T5ForConditionalGeneration, T5Tokenizer
+from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from surya.recognition import RecognitionPredictor
@@ -11,6 +13,7 @@ from surya.detection import DetectionPredictor
 from document_processor import DocumentProcessor
 from text_chunker import TextChunker
 from lt_logger import TranslationLogger
+from html_processor import HTMLProcessor
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -29,50 +32,78 @@ logger = logging.getLogger(__name__)
 
 translation_logger = TranslationLogger(log_dir="translation_logs")
 
-# Language configurations
+# Language configurations for MADLAD-400 model
+LANGUAGE_CODES = {
+    # MADLAD-400 language codes (using 2-letter ISO codes)
+    'English': 'en',
+    'Spanish': 'es',
+    'French': 'fr',
+    'German': 'de',
+    'Italian': 'it',
+    'Portuguese': 'pt',
+    'Dutch': 'nl',
+    'Polish': 'pl',
+    'Russian': 'ru',
+    'Chinese': 'zh',
+    'Japanese': 'ja',
+    'Korean': 'ko',
+    'Arabic': 'ar',
+    'Hindi': 'hi',
+    'Tamil': 'ta',
+    'Telugu': 'te',
+    'Kannada': 'kn',
+    'Malayalam': 'ml',
+    'Czech': 'cs',
+    'Slovak': 'sk',
+    'Swedish': 'sv',
+    'Danish': 'da'
+}
+
 LANGUAGE_FAMILIES = {
     'Dravidian': {
-        'Tamil': ('en', 'dra', '>>tam<<'),
-        'Telugu': ('en', 'dra', '>>tel<<'),
-        'Kannada': ('en', 'dra', '>>kan<<'),
-        'Malayalam': ('en', 'dra', '>>mal<<')
+        'Tamil': 'ta',
+        'Telugu': 'te',
+        'Kannada': 'kn',
+        'Malayalam': 'ml'
     },
     'Slavic': {
-        'Russian': ('en', 'ru', '>>rus<<'),
-        'Polish': ('en', 'pl', '>>pol<<'),
-        'Czech': ('en', 'cs', '>>ces<<'),
-        'Slovak': ('en', 'sk', '>>sk<<')
+        'Russian': 'ru',
+        'Polish': 'pl',
+        'Czech': 'cs',
+        'Slovak': 'sk'
     },
     'Germanic': {
-        'German': ('en', 'de', '>>deu<<'),
-        'Dutch': ('en', 'nl', '>>nld<<'),
-        'Swedish': ('en', 'swe', '>>swe<<'),
-        'Danish': ('en', 'dan', '>>dan<<')
+        'German': 'de',
+        'Dutch': 'nl',
+        'Swedish': 'sv',
+        'Danish': 'da'
     },
     'Romance': {
-        'Spanish': ('en', 'es', '>>spa<<'),
-        'French': ('en', 'fr', '>>fra<<'),
-        'Italian': ('en', 'it', '>>ita<<'),
-        'Portuguese': ('en', 'pt', '>>por<<')
+        'Spanish': 'es',
+        'French': 'fr',
+        'Italian': 'it',
+        'Portuguese': 'pt'
+    },
+    'Asian': {
+        'Chinese': 'zh',
+        'Japanese': 'ja',
+        'Korean': 'ko',
+    },
+    'Indic': {
+        'Hindi': 'hi',
+        'Bengali': 'bn',
+        'Marathi': 'mr',
+        'Gujarati': 'gu'
     }
 }
 
-INDIVIDUAL_LANGUAGES = {
-    'English': ('en', 'en', '>>eng<<'),
-    'Spanish': ('en', 'es', '>>spa<<'),
-    'French': ('en', 'fr', '>>fra<<'),
-    'German': ('en', 'de', '>>deu<<'),
-    'Italian': ('en', 'it', '>>ita<<'),
-    'Portuguese': ('en', 'pt', '>>por<<'),
-    'Dutch': ('en', 'nl', '>>nld<<'),
-    'Polish': ('en', 'pl', '>>pol<<'),
-    'Russian': ('en', 'ru', '>>rus<<')
-}
+INDIVIDUAL_LANGUAGES = {lang: code for lang, code in LANGUAGE_CODES.items()}
 
 class TranslationService:
     def __init__(self):
-        self.models = {}
-        self.tokenizers = {}
+        self.model = None
+        self.tokenizer = None
+        self.device = self._get_device()
         self.recognition_predictor = RecognitionPredictor()
         self.detection_predictor = DetectionPredictor()
         self.langs = ["en"]
@@ -81,21 +112,63 @@ class TranslationService:
             self.detection_predictor,
             self.langs
         )
-        self.text_chunker = TextChunker(max_tokens=450, overlap_tokens=50)
-
-    def translate_text(self, text, source_lang_info, target_lang_info):
-        """Translate text using chunking for long texts."""
+        self.text_chunker = TextChunker(max_tokens=250, overlap_tokens=30)
+        self.html_processor = HTMLProcessor()
+        
+        # Load model during initialization to avoid reloading
+        self._load_model()
+        
+    def _get_device(self):
+        """Get the best available device for model inference."""
+        if torch.cuda.is_available():
+            logger.info("Using CUDA GPU for translation")
+            return torch.device("cuda")
+        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            logger.info("Using Apple MPS (Metal) for translation")
+            return torch.device("mps")
+        else:
+            logger.info("Using CPU for translation")
+            return torch.device("cpu")
+            
+    def _load_model(self):
+        """Load the MADLAD-400 3B translation model."""
         try:
-            source_lang, target_lang = source_lang_info[1], target_lang_info[1]
-            target_token = target_lang_info[2]
+            # Use the Google MADLAD-400 3B MT model
+            model_name = "google/madlad400-3b-mt"
             
-            translation_model = self.get_model(source_lang, target_lang)
-            if not translation_model:
-                return "Error: Could not load translation model"
+            logger.info(f"Loading translation model: {model_name}")
+            self.tokenizer = T5Tokenizer.from_pretrained(model_name)
             
-            tokenizer = translation_model['tokenizer']
-            model = translation_model['model']
-
+            # Use torch_dtype=torch.bfloat16 if available for faster inference
+            if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 8:
+                # Use bfloat16 for Ampere (RTX 30xx) or newer GPUs
+                logger.info("Using bfloat16 precision for model loading")
+                self.model = T5ForConditionalGeneration.from_pretrained(
+                    model_name, 
+                    torch_dtype=torch.bfloat16
+                )
+            else:
+                # Fallback to float16 or float32
+                dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+                logger.info(f"Using {dtype} precision for model loading")
+                self.model = T5ForConditionalGeneration.from_pretrained(
+                    model_name, 
+                    torch_dtype=dtype
+                )
+            
+            # Move model to device (GPU if available)
+            self.model.to(self.device)
+            
+            logger.info(f"Model loaded successfully on {self.device}")
+        except Exception as e:
+            logger.error(f"Error loading model: {str(e)}")
+            
+    def translate_text(self, text, source_lang_code, target_lang_code):
+        """Translate text using chunking for long texts with MADLAD-400 model."""
+        try:
+            if self.model is None or self.tokenizer is None:
+                return "Error: Translation model not loaded"
+            
             # Get chunks using TextChunker
             chunks = self.text_chunker.create_chunks(text)
             translated_chunks = []
@@ -103,10 +176,37 @@ class TranslationService:
             # Translate each chunk
             for chunk in tqdm(chunks, desc="Translating chunks", unit="chunk"):
                 try:
-                    chunk_text = f"{target_token} {chunk.text}" if target_token else chunk.text
-                    inputs = tokenizer(chunk_text, return_tensors="pt", padding=True)
-                    translated = model.generate(**inputs)
-                    translated_text = tokenizer.decode(translated[0], skip_special_tokens=True)
+                    # Prepare input with MADLAD-400 format: <2{target_lang}> {source_text}
+                    # This prepends the target language token to the source text
+                    input_text = f"<2{target_lang_code}> {chunk.text}"
+                    
+                    # Tokenize input
+                    inputs = self.tokenizer(
+                        input_text, 
+                        return_tensors="pt", 
+                        padding=True,
+                        truncation=True,
+                        max_length=512
+                    )
+                    
+                    # Move inputs to device
+                    inputs = {k: v.to(self.device) for k, v in inputs.items()}
+                    
+                    # Generate translation
+                    with torch.no_grad():
+                        translated = self.model.generate(
+                            **inputs,
+                            max_length=512,
+                            num_beams=5,
+                            early_stopping=True
+                        )
+                    
+                    # Decode translation
+                    translated_text = self.tokenizer.batch_decode(
+                        translated, 
+                        skip_special_tokens=True
+                    )[0]
+                    
                     translated_chunks.append(translated_text)
                 except Exception as e:
                     logger.error(f"Error translating part {chunk.index + 1}: {str(e)}")
@@ -119,23 +219,35 @@ class TranslationService:
         except Exception as e:
             logger.error(f"Translation error: {str(e)}")
             return f"Translation error: {str(e)}"
-
-    def get_model(self, source_lang, target_lang):
-        """Get or load translation model."""
-        model_key = f"helsinki-nmt-{source_lang}-{target_lang}"
-        if model_key not in self.models:
-            try:
-                model_name = f'Helsinki-NLP/opus-mt-{source_lang}-{target_lang}'
-                self.tokenizers[model_key] = MarianTokenizer.from_pretrained(model_name)
-                self.models[model_key] = MarianMTModel.from_pretrained(model_name)
-                logger.info(f"Loaded model: {model_key}")
-            except Exception as e:
-                logger.error(f"Error loading model: {str(e)}")
-                return None
-        return {
-            'tokenizer': self.tokenizers[model_key],
-            'model': self.models[model_key]
-        }
+            
+    def translate_html(self, html_content, source_lang_code, target_lang_code):
+        """Translate HTML content while preserving HTML structure using MADLAD-400 model."""
+        try:
+            # Extract text and HTML structure
+            text_fragments, html_map = self.html_processor.extract_text(html_content)
+            
+            if not text_fragments:
+                return html_content  # No text to translate
+            
+            # Process each text fragment individually for better translation quality
+            translated_fragments = []
+            for fragment in tqdm(text_fragments, desc="Translating HTML fragments", unit="fragment"):
+                if not fragment.strip():
+                    translated_fragments.append(fragment)
+                    continue
+                
+                # Translate each fragment separately
+                translated_fragment = self.translate_text(fragment, source_lang_code, target_lang_code)
+                translated_fragments.append(translated_fragment)
+            
+            # Replace the original text with translated text in the HTML structure
+            translated_html = self.html_processor.replace_text(html_map, translated_fragments)
+            
+            return translated_html
+            
+        except Exception as e:
+            logger.error(f"HTML translation error: {str(e)}")
+            return f"HTML translation error: {str(e)}"
 
     def process_document(self, file_data: bytes, filename: str, use_ocr: bool = False):
         """Process document using DocumentProcessor."""
@@ -175,7 +287,7 @@ def translate():
         if source_lang not in INDIVIDUAL_LANGUAGES:
             raise ValueError(f"Invalid source language: {source_lang}")
         
-        source_lang_info = INDIVIDUAL_LANGUAGES[source_lang]
+        source_lang_code = INDIVIDUAL_LANGUAGES[source_lang]
         
         # Handle language family translation
         if is_family:
@@ -183,18 +295,18 @@ def translate():
                 raise ValueError(f"Invalid language family: {family_name}")
             if target_lang not in LANGUAGE_FAMILIES[family_name]:
                 raise ValueError(f"Invalid target language {target_lang} for family {family_name}")
-            target_lang_info = LANGUAGE_FAMILIES[family_name][target_lang]
+            target_lang_code = LANGUAGE_FAMILIES[family_name][target_lang]
         else:
             if target_lang not in INDIVIDUAL_LANGUAGES:
                 raise ValueError(f"Invalid target language: {target_lang}")
             if target_lang == source_lang:
                 raise ValueError("Source and target languages cannot be the same")
-            target_lang_info = INDIVIDUAL_LANGUAGES[target_lang]
+            target_lang_code = INDIVIDUAL_LANGUAGES[target_lang]
 
         translated_text = translation_service.translate_text(
             text,
-            source_lang_info,
-            target_lang_info
+            source_lang_code,
+            target_lang_code
         )
 
         translation_logger.log_translation(
@@ -213,16 +325,97 @@ def translate():
         })
 
     except (ValueError, Exception) as e:
+        error_message = str(e)
+        logger.error(f"Translation error: {error_message}")
+        
         translation_logger.log_translation(
-            source_text=text,
+            source_text=data.get('text', '') if 'data' in locals() else '',
             translated_text="",
-            source_lang=source_lang, 
+            source_lang=data.get('source_lang', '') if 'data' in locals() else '',
+            target_lang=data.get('target_lang', '') if 'data' in locals() else '',
+            is_family=str(data.get('is_family', '')).lower() == 'true' if 'data' in locals() else False,
+            family_name=data.get('family_name', '') if 'data' in locals() else '',
+            success=False,
+            error_message=error_message
+        )
+        
+        return jsonify({
+            'success': False,
+            'error': error_message
+        })
+
+@app.route('/translate-html', methods=['POST'])
+def translate_html():
+    try:
+        data = request.form
+        html_content = data.get('html', '')
+        source_lang = data.get('source_lang', 'English')
+        target_lang = data.get('target_lang', '')
+        is_family = str(data.get('is_family')).lower() == 'true'
+        family_name = data.get('family_name', '')
+
+        # Validate source language
+        if source_lang not in INDIVIDUAL_LANGUAGES:
+            raise ValueError(f"Invalid source language: {source_lang}")
+        
+        source_lang_code = INDIVIDUAL_LANGUAGES[source_lang]
+        
+        # Handle language family translation
+        if is_family:
+            if family_name not in LANGUAGE_FAMILIES:
+                raise ValueError(f"Invalid language family: {family_name}")
+            if target_lang not in LANGUAGE_FAMILIES[family_name]:
+                raise ValueError(f"Invalid target language {target_lang} for family {family_name}")
+            target_lang_code = LANGUAGE_FAMILIES[family_name][target_lang]
+        else:
+            if target_lang not in INDIVIDUAL_LANGUAGES:
+                raise ValueError(f"Invalid target language: {target_lang}")
+            if target_lang == source_lang:
+                raise ValueError("Source and target languages cannot be the same")
+            target_lang_code = INDIVIDUAL_LANGUAGES[target_lang]
+
+        translated_html = translation_service.translate_html(
+            html_content,
+            source_lang_code,
+            target_lang_code
+        )
+
+        translation_logger.log_translation(
+            source_text=html_content,
+            translated_text=translated_html,
+            source_lang=source_lang,
             target_lang=target_lang,
             is_family=is_family,
             family_name=family_name,
-            success=False,
-            error_message=str(e)
+            success=True,
+            translation_type="html"
         )
+
+        return jsonify({
+            'success': True,
+            'translated_html': translated_html
+        })
+
+    except (ValueError, Exception) as e:
+        error_message = str(e)
+        logger.error(f"HTML translation error: {error_message}")
+        
+        translation_logger.log_translation(
+            source_text=data.get('html', '') if 'data' in locals() else '',
+            translated_text="",
+            source_lang=data.get('source_lang', '') if 'data' in locals() else '',
+            target_lang=data.get('target_lang', '') if 'data' in locals() else '',
+            is_family=str(data.get('is_family', '')).lower() == 'true' if 'data' in locals() else False,
+            family_name=data.get('family_name', '') if 'data' in locals() else '',
+            success=False,
+            error_message=error_message,
+            translation_type="html"
+        )
+        
+        return jsonify({
+            'success': False,
+            'error': error_message
+        })
 
 @app.route('/process-document', methods=['POST'])
 def process_document():
@@ -250,29 +443,29 @@ def process_document():
 
         if extracted_text:
             # Handle translation
-            source_lang_info = INDIVIDUAL_LANGUAGES[source_lang]
+            source_lang_code = INDIVIDUAL_LANGUAGES[source_lang]
             if is_family:
-                target_lang_info = LANGUAGE_FAMILIES[family_name][target_lang]
+                target_lang_code = LANGUAGE_FAMILIES[family_name][target_lang]
             else:
-                target_lang_info = INDIVIDUAL_LANGUAGES[target_lang]
+                target_lang_code = INDIVIDUAL_LANGUAGES[target_lang]
 
             translated_text = translation_service.translate_text(
                 extracted_text,
-                source_lang_info,
-                target_lang_info
+                source_lang_code,
+                target_lang_code
             )
 
             translation_logger.log_translation(
-            source_text=extracted_text,
-            translated_text=translated_text,
-            source_lang=source_lang,
-            target_lang=target_lang,
-            is_family=is_family,
-            family_name=family_name,
-            extracted_text=extracted_text,
-            file_name=file.filename,
-            success=True
-        )
+                source_text=extracted_text,
+                translated_text=translated_text,
+                source_lang=source_lang,
+                target_lang=target_lang,
+                is_family=is_family,
+                family_name=family_name,
+                extracted_text=extracted_text,
+                file_name=file.filename,
+                success=True
+            )
 
             return jsonify({
                 'success': True,
@@ -300,20 +493,24 @@ def process_document():
             })
 
     except Exception as e:
+        error_message = str(e)
+        logger.error(f"Document processing error: {error_message}")
+        
         translation_logger.log_translation(
             source_text="",
             translated_text="",
-            source_lang=source_lang,
-            target_lang=target_lang,
-            is_family=is_family,
-            family_name=family_name,
-            file_name=file.filename if file else None,
+            source_lang=request.form.get('source_lang', 'English'),
+            target_lang=request.form.get('target_lang', ''),
+            is_family=request.form.get('is_family') == 'true',
+            family_name=request.form.get('family_name', ''),
+            file_name=file.filename if 'file' in locals() else None,
             success=False,
-            error_message=str(e)
+            error_message=error_message
         )
+        
         return jsonify({
             'success': False,
-            'error': str(e)
+            'error': error_message
         })
     
 @app.route('/logs', methods=['GET'])

@@ -6,10 +6,17 @@
     <title>Universal Translator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/alpinejs" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/xml/xml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/css/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/htmlmixed/htmlmixed.min.js"></script>
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
 </head>
-<body class="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
-    <div class="container mx-auto p-4 max-w-5xl" x-data="{
+<body class="bg-gradient-to-br from-blue-50 to-indigo-50 min-h-screen">
+    <div class="container mx-auto p-4 max-w-6xl" x-data="{
         activeTab: 'text',
         sourceText: '',
         translatedText: '',
@@ -24,6 +31,12 @@
         extractedText: '',
         useOcr: false,
         showSourceTextPreview: true,
+        htmlContent: '',
+        translatedHtml: '',
+        htmlPreview: false,
+        htmlEditor: null,
+        htmlPreviewEditor: null,
+        translatedHtmlEditor: null,
 
         clearTargetSelections() {
             this.targetLang = '';
@@ -45,6 +58,39 @@
 
             this.$watch('targetFamily', value => {
                 this.targetLang = '';
+            });
+            
+            this.$watch('activeTab', value => {
+                if (value === 'html') {
+                    // Initialize CodeMirror after component is mounted
+                    this.$nextTick(() => {
+                        if (!this.htmlEditor) {
+                            this.htmlEditor = CodeMirror.fromTextArea(document.getElementById('html-editor'), {
+                                mode: 'htmlmixed',
+                                theme: 'monokai',
+                                lineNumbers: true,
+                                lineWrapping: true,
+                                autoCloseTags: true,
+                                autoCloseBrackets: true,
+                                matchBrackets: true
+                            });
+                            
+                            this.htmlEditor.on('change', (instance) => {
+                                this.htmlContent = instance.getValue();
+                            });
+                        }
+                        
+                        if (!this.translatedHtmlEditor) {
+                            this.translatedHtmlEditor = CodeMirror.fromTextArea(document.getElementById('translated-html-editor'), {
+                                mode: 'htmlmixed',
+                                theme: 'monokai',
+                                lineNumbers: true,
+                                lineWrapping: true,
+                                readOnly: true
+                            });
+                        }
+                    });
+                }
             });
         },
 
@@ -78,6 +124,56 @@
                 this.error = 'Translation failed';
             } finally {
                 this.loading = false;
+            }
+        },
+
+        async handleHtmlTranslation() {
+            if (!this.htmlContent || !this.targetLang) return;
+            
+            this.loading = true;
+            this.error = '';
+            this.translatedHtml = '';
+            this.htmlPreview = false;
+            
+            const formData = new FormData();
+            formData.append('html', this.htmlContent);
+            formData.append('source_lang', this.sourceLang);
+            formData.append('target_lang', this.targetLang);
+            formData.append('is_family', this.isFamily);
+            if (this.isFamily) formData.append('family_name', this.targetFamily);
+            
+            try {
+                const response = await fetch('/translate-html', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.translatedHtml = data.translated_html;
+                    this.$nextTick(() => {
+                        if (this.translatedHtmlEditor) {
+                            this.translatedHtmlEditor.setValue(this.translatedHtml);
+                            this.translatedHtmlEditor.refresh();
+                        }
+                    });
+                } else {
+                    this.error = data.error;
+                }
+            } catch (err) {
+                this.error = 'HTML translation failed';
+            } finally {
+                this.loading = false;
+            }
+        },
+        
+        toggleHtmlPreview() {
+            this.htmlPreview = !this.htmlPreview;
+            if (this.htmlPreview) {
+                this.$nextTick(() => {
+                    const previewContainer = document.getElementById('html-preview-container');
+                    previewContainer.innerHTML = this.translatedHtml;
+                });
             }
         },
 
@@ -125,11 +221,11 @@
             }
         }
     }">
-        <div class="max-w-5xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="max-w-6xl mx-auto bg-white rounded-xl shadow-xl overflow-hidden">
             <!-- Header -->
-            <div class="bg-gradient-to-r from-blue-600 to-blue-800 p-6">
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-700 p-6">
                 <h1 class="text-3xl font-bold text-white text-center">Universal Translator</h1>
-                <p class="text-blue-100 text-center mt-2">Translate text and documents across multiple languages</p>
+                <p class="text-blue-100 text-center mt-2">Translate text, documents, and HTML across multiple languages</p>
             </div>
 
             <!-- Language Selection Panel -->
@@ -222,6 +318,13 @@
                             class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
                             Document Translation
                         </button>
+                        <button 
+                            @click="activeTab = 'html'"
+                            :class="{'border-blue-500 text-blue-600': activeTab === 'html',
+                                    'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'html'}"
+                            class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                            HTML Translation
+                        </button>
                     </nav>
                 </div>
 
@@ -247,7 +350,7 @@
                         <button 
                             @click="handleTextTranslation"
                             :disabled="!sourceText || !targetLang || loading"
-                            class="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg py-3 px-4 font-medium shadow-sm hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            class="w-full bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-lg py-3 px-4 font-medium shadow-sm hover:from-blue-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
                             <span x-text="loading ? 'Translating...' : 'Translate'"></span>
                         </button>
 
@@ -322,7 +425,7 @@
                         <button 
                             @click="handleDocumentTranslation"
                             :disabled="!file || !targetLang || loading"
-                            class="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg py-3 px-4 font-medium shadow-sm hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            class="w-full bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-lg py-3 px-4 font-medium shadow-sm hover:from-blue-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
                             <span x-text="loading ? 'Processing...' : 'Translate Document'"></span>
                         </button>
 
@@ -358,6 +461,78 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- HTML Translation Tab -->
+                <div x-show="activeTab === 'html'" x-transition>
+                    <div class="space-y-6">
+                        <!-- HTML Editor -->
+                        <div class="space-y-2">
+                            <label class="block text-sm font-medium text-gray-700">HTML Source</label>
+                            <div class="relative">
+                                <textarea
+                                    id="html-editor"
+                                    x-model="htmlContent"
+                                    placeholder="Enter HTML to translate..."
+                                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 min-h-[12rem] resize-y"
+                                ></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Translation Button -->
+                        <button 
+                            @click="handleHtmlTranslation"
+                            :disabled="!htmlContent || !targetLang || loading"
+                            class="w-full bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-lg py-3 px-4 font-medium shadow-sm hover:from-blue-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span x-text="loading ? 'Translating HTML...' : 'Translate HTML'"></span>
+                        </button>
+
+                        <!-- Translation Result -->
+                        <div x-show="translatedHtml" x-transition>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-sm font-medium text-gray-700">Translated HTML</label>
+                                <div class="flex space-x-2">
+                                    <button 
+                                        @click="navigator.clipboard.writeText(translatedHtml)"
+                                        class="text-sm text-gray-500 hover:text-gray-700 focus:outline-none flex items-center"
+                                        title="Copy to clipboard">
+                                        <svg class="h-5 w-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+                                        </svg>
+                                        Copy
+                                    </button>
+                                    <button 
+                                        @click="toggleHtmlPreview"
+                                        class="text-sm text-blue-600 hover:text-blue-700 focus:outline-none flex items-center">
+                                        <svg class="h-5 w-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                        <span x-text="htmlPreview ? 'Hide Preview' : 'Show Preview'"></span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- CodeMirror Editor for Translated HTML -->
+                            <div class="bg-gray-900 rounded-lg border border-gray-700">
+                                <textarea
+                                    id="translated-html-editor"
+                                    x-model="translatedHtml"
+                                    class="w-full min-h-[12rem] resize-y hidden"
+                                ></textarea>
+                            </div>
+                            
+                            <!-- HTML Preview -->
+                            <div x-show="htmlPreview" x-transition class="mt-4">
+                                <div class="flex justify-between items-center mb-2">
+                                    <label class="block text-sm font-medium text-gray-700">HTML Preview</label>
+                                </div>
+                                <div class="bg-white rounded-lg border border-gray-300 p-4 min-h-[12rem]">
+                                    <div id="html-preview-container"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Error Message -->
                 <div 
@@ -368,9 +543,15 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Model Info -->
+        <div class="mt-6 text-center text-sm text-gray-500">
+            <p>Powered by Google MADLAD-400 3B model - Supports 450+ languages with GPU acceleration</p>
+        </div>
     </div>
     <style>
         [x-cloak] { display: none !important; }
+        .CodeMirror { height: auto; min-height: 300px; border-radius: 0.5rem; }
     </style>
 </body>
 </html>
