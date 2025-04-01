@@ -88,8 +88,8 @@ class TranslationLogger:
             "target_language": target_lang,
             "is_family_translation": is_family,
             "language_family": family_name if is_family else None,
-            "source_text": source_text[:1000] + "..." if len(source_text) > 1000 else source_text,
-            "translated_text": translated_text[:1000] + "..." if len(translated_text) > 1000 else translated_text,
+            "source_text": source_text,
+            "translated_text": translated_text,
             "success": success,
             "error_message": error_message
         }
@@ -98,7 +98,7 @@ class TranslationLogger:
         if file_name:
             log_entry.update({
                 "file_name": file_name,
-                "extracted_text": extracted_text[:1000] + "..." if extracted_text and len(extracted_text) > 1000 else extracted_text
+                "extracted_text": extracted_text
             })
 
         # Read existing logs, append new entry, and write back
