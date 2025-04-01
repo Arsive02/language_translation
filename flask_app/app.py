@@ -115,7 +115,7 @@ class TranslationService:
         
         # Load model during initialization to avoid reloading
         self._load_model()
-        
+
     def _get_device(self):
         """Get the best available device for model inference."""
         if torch.cuda.is_available():
@@ -211,10 +211,10 @@ class TranslationService:
             return f"Translation error: {str(e)}"
             
     def translate_html(self, html_content, source_lang_code, target_lang_code):
-        """Translate HTML content while preserving HTML structure using MADLAD-400 model."""
+        """Translate HTML content while preserving exact HTML structure using MADLAD-400 model."""
         try:
-            # Extract text and HTML structure
-            text_fragments, html_map = self.html_processor.extract_text(html_content)
+            # Extract text and maintain exact DOM structure
+            text_fragments, dom_data = self.html_processor.extract_text(html_content)
             
             if not text_fragments:
                 return html_content  # No text to translate
@@ -226,12 +226,41 @@ class TranslationService:
                     translated_fragments.append(fragment)
                     continue
                 
-                # Translate each fragment separately
-                translated_fragment = self.translate_text(fragment, source_lang_code, target_lang_code)
-                translated_fragments.append(translated_fragment)
+                # Translate each fragment separately with MADLAD-400 target language format
+                input_text = f"<2{target_lang_code}> {fragment}"
+                
+                # Tokenize input
+                inputs = self.tokenizer(
+                    input_text, 
+                    return_tensors="pt", 
+                    padding=True,
+                    truncation=True,
+                    max_length=512
+                )
+                
+                # Move inputs to device
+                inputs = {k: v.to(self.device) for k, v in inputs.items()}
+                
+                # Generate translation
+                with torch.no_grad():
+                    translated = self.model.generate(
+                        **inputs,
+                        max_length=512,
+                        num_beams=5,
+                        early_stopping=True
+                    )
+                
+                # Decode translation
+                translated_text = self.tokenizer.batch_decode(
+                    translated, 
+                    skip_special_tokens=True
+                )[0]
+                
+                translated_fragments.append(translated_text)
             
             # Replace the original text with translated text in the HTML structure
-            translated_html = self.html_processor.replace_text(html_map, translated_fragments)
+            # This uses the exact node references to maintain structure
+            translated_html = self.html_processor.replace_text(dom_data, translated_fragments)
             
             return translated_html
             
