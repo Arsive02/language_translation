@@ -1,5 +1,4 @@
 FROM python:3.10-bullseye
-
 WORKDIR /app
 
 # Install system dependencies
@@ -21,12 +20,11 @@ COPY . .
 RUN mkdir -p uploads translation_logs
 
 # Expose the port for the Flask app
-EXPOSE 5000
+EXPOSE 8000
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_APP=app.py
-ENV HF_API_URL=https://arsive-lt-space.hf.space
+ENV HF_API_URL=https://username-universal-translator.hf.space
 
-# Run the Flask app
-CMD ["gunicorn", "--bind", "0.0.0.0", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--timeout", "3000", "app:app"]
