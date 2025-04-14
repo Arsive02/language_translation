@@ -1,0 +1,353 @@
+import logging
+import os
+from flask import Flask, render_template, request, jsonify
+from api_client import TranslationClient
+from lt_logger import TranslationLogger
+
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+logger = logging.getLogger(__name__)
+
+translation_logger = TranslationLogger(log_dir="translation_logs")
+translation_client = TranslationClient()
+
+# Language configurations
+LANGUAGE_CODES = {
+    # MADLAD-400 language codes (using 2-letter ISO codes)
+    'English': 'en',
+    'Spanish': 'es',
+    'French': 'fr',
+    'German': 'de',
+    'Italian': 'it',
+    'Portuguese': 'pt',
+    'Dutch': 'nl',
+    'Polish': 'pl',
+    'Russian': 'ru',
+    'Chinese': 'zh',
+    'Japanese': 'ja',
+    'Korean': 'ko',
+    'Arabic': 'ar',
+    'Hindi': 'hi',
+    'Tamil': 'ta',
+    'Telugu': 'te',
+    'Kannada': 'kn',
+    'Malayalam': 'ml',
+    'Czech': 'cs',
+    'Slovak': 'sk',
+    'Swedish': 'sv',
+    'Danish': 'da'
+}
+
+LANGUAGE_FAMILIES = {
+    'Dravidian': {
+        'Tamil': 'ta',
+        'Telugu': 'te',
+        'Kannada': 'kn',
+        'Malayalam': 'ml'
+    },
+    'Slavic': {
+        'Russian': 'ru',
+        'Polish': 'pl',
+        'Czech': 'cs',
+        'Slovak': 'sk'
+    },
+    'Germanic': {
+        'German': 'de',
+        'Dutch': 'nl',
+        'Swedish': 'sv',
+        'Danish': 'da'
+    },
+    'Romance': {
+        'Spanish': 'es',
+        'French': 'fr',
+        'Italian': 'it',
+        'Portuguese': 'pt'
+    },
+    'Asian': {
+        'Chinese': 'zh',
+        'Japanese': 'ja',
+        'Korean': 'ko',
+    },
+    'Indic': {
+        'Hindi': 'hi',
+        'Bengali': 'bn',
+        'Marathi': 'mr',
+        'Gujarati': 'gu'
+    }
+}
+
+INDIVIDUAL_LANGUAGES = {lang: code for lang, code in LANGUAGE_CODES.items()}
+
+@app.route('/')
+def index():
+    return render_template(
+        'index.html',
+        language_families=LANGUAGE_FAMILIES,
+        individual_languages=INDIVIDUAL_LANGUAGES
+    )
+
+@app.route('/translate', methods=['POST'])
+def translate():
+    try:
+        data = request.form
+        text = data.get('text', '')
+        source_lang = data.get('source_lang', 'English')
+        target_lang = data.get('target_lang', '')
+        is_family = str(data.get('is_family')).lower() == 'true'
+        family_name = data.get('family_name', '')
+
+        # Validate source language
+        if source_lang not in INDIVIDUAL_LANGUAGES:
+            raise ValueError(f"Invalid source language: {source_lang}")
+        
+        source_lang_code = INDIVIDUAL_LANGUAGES[source_lang]
+        
+        # Handle language family translation
+        if is_family:
+            if family_name not in LANGUAGE_FAMILIES:
+                raise ValueError(f"Invalid language family: {family_name}")
+            if target_lang not in LANGUAGE_FAMILIES[family_name]:
+                raise ValueError(f"Invalid target language {target_lang} for family {family_name}")
+            target_lang_code = LANGUAGE_FAMILIES[family_name][target_lang]
+        else:
+            if target_lang not in INDIVIDUAL_LANGUAGES:
+                raise ValueError(f"Invalid target language: {target_lang}")
+            if target_lang == source_lang:
+                raise ValueError("Source and target languages cannot be the same")
+            target_lang_code = INDIVIDUAL_LANGUAGES[target_lang]
+
+        # Call the API client to translate
+        response = translation_client.translate_text(
+            text,
+            source_lang_code,
+            target_lang_code
+        )
+
+        translated_text = response.get('translated_text', '')
+
+        translation_logger.log_translation(
+            source_text=text,
+            translated_text=translated_text,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            is_family=is_family,
+            family_name=family_name,
+            success=True
+        )
+
+        return jsonify({
+            'success': True,
+            'translated_text': translated_text
+        })
+
+    except (ValueError, Exception) as e:
+        error_message = str(e)
+        logger.error(f"Translation error: {error_message}")
+        
+        translation_logger.log_translation(
+            source_text=data.get('text', '') if 'data' in locals() else '',
+            translated_text="",
+            source_lang=data.get('source_lang', '') if 'data' in locals() else '',
+            target_lang=data.get('target_lang', '') if 'data' in locals() else '',
+            is_family=str(data.get('is_family', '')).lower() == 'true' if 'data' in locals() else False,
+            family_name=data.get('family_name', '') if 'data' in locals() else '',
+            success=False,
+            error_message=error_message
+        )
+        
+        return jsonify({
+            'success': False,
+            'error': error_message
+        })
+
+@app.route('/translate-html', methods=['POST'])
+def translate_html():
+    try:
+        data = request.form
+        html_content = data.get('html', '')
+        source_lang = data.get('source_lang', 'English')
+        target_lang = data.get('target_lang', '')
+        is_family = str(data.get('is_family')).lower() == 'true'
+        family_name = data.get('family_name', '')
+
+        # Validate source language
+        if source_lang not in INDIVIDUAL_LANGUAGES:
+            raise ValueError(f"Invalid source language: {source_lang}")
+        
+        source_lang_code = INDIVIDUAL_LANGUAGES[source_lang]
+        
+        # Handle language family translation
+        if is_family:
+            if family_name not in LANGUAGE_FAMILIES:
+                raise ValueError(f"Invalid language family: {family_name}")
+            if target_lang not in LANGUAGE_FAMILIES[family_name]:
+                raise ValueError(f"Invalid target language {target_lang} for family {family_name}")
+            target_lang_code = LANGUAGE_FAMILIES[family_name][target_lang]
+        else:
+            if target_lang not in INDIVIDUAL_LANGUAGES:
+                raise ValueError(f"Invalid target language: {target_lang}")
+            if target_lang == source_lang:
+                raise ValueError("Source and target languages cannot be the same")
+            target_lang_code = INDIVIDUAL_LANGUAGES[target_lang]
+
+        # Call the API client to translate HTML
+        response = translation_client.translate_html(
+            html_content,
+            source_lang_code,
+            target_lang_code
+        )
+
+        translated_html = response.get('translated_html', '')
+
+        translation_logger.log_translation(
+            source_text=html_content,
+            translated_text=translated_html,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            is_family=is_family,
+            family_name=family_name,
+            success=True,
+            translation_type="html"
+        )
+
+        return jsonify({
+            'success': True,
+            'translated_html': translated_html
+        })
+
+    except (ValueError, Exception) as e:
+        error_message = str(e)
+        logger.error(f"HTML translation error: {error_message}")
+        
+        translation_logger.log_translation(
+            source_text=data.get('html', '') if 'data' in locals() else '',
+            translated_text="",
+            source_lang=data.get('source_lang', '') if 'data' in locals() else '',
+            target_lang=data.get('target_lang', '') if 'data' in locals() else '',
+            is_family=str(data.get('is_family', '')).lower() == 'true' if 'data' in locals() else False,
+            family_name=data.get('family_name', '') if 'data' in locals() else '',
+            success=False,
+            error_message=error_message,
+            translation_type="html"
+        )
+        
+        return jsonify({
+            'success': False,
+            'error': error_message
+        })
+
+@app.route('/process-document', methods=['POST'])
+def process_document():
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'No file uploaded'})
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'})
+
+        use_ocr = request.form.get('use_ocr', 'false').lower() == 'true'
+        source_lang = request.form.get('source_lang', 'English')
+        target_lang = request.form.get('target_lang', '')
+        is_family = request.form.get('is_family') == 'true'
+        family_name = request.form.get('family_name', '')
+
+        # Validate languages
+        source_lang_code = INDIVIDUAL_LANGUAGES[source_lang]
+        if is_family:
+            target_lang_code = LANGUAGE_FAMILIES[family_name][target_lang]
+        else:
+            target_lang_code = INDIVIDUAL_LANGUAGES[target_lang]
+
+        # Read file
+        file_data = file.read()
+        
+        # Call the API client to process document
+        response = translation_client.process_document(
+            file_data,
+            file.filename,
+            source_lang_code,
+            target_lang_code,
+            use_ocr
+        )
+
+        extracted_text = response.get('extracted_text', '')
+        translated_text = response.get('translated_text', '')
+
+        translation_logger.log_translation(
+            source_text=extracted_text,
+            translated_text=translated_text,
+            source_lang=source_lang,
+            target_lang=target_lang,
+            is_family=is_family,
+            family_name=family_name,
+            extracted_text=extracted_text,
+            file_name=file.filename,
+            success=True
+        )
+
+        return jsonify({
+            'success': True,
+            'result': {
+                'extracted_text': extracted_text,
+                'translated_text': translated_text
+            }
+        })
+
+    except Exception as e:
+        error_message = str(e)
+        logger.error(f"Document processing error: {error_message}")
+        
+        translation_logger.log_translation(
+            source_text="",
+            translated_text="",
+            source_lang=request.form.get('source_lang', 'English'),
+            target_lang=request.form.get('target_lang', ''),
+            is_family=request.form.get('is_family') == 'true',
+            family_name=request.form.get('family_name', ''),
+            file_name=file.filename if 'file' in locals() else None,
+            success=False,
+            error_message=error_message
+        )
+        
+        return jsonify({
+            'success': False,
+            'error': error_message
+        })
+    
+@app.route('/logs', methods=['GET'])
+def get_logs():
+    date = request.args.get('date')
+    logs = translation_logger.get_logs(date)
+    return jsonify(logs)
+
+@app.route('/logs/search', methods=['GET'])
+def search_logs():
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    translation_type = request.args.get('type')
+    source_lang = request.args.get('source_lang')
+    target_lang = request.args.get('target_lang')
+    success_only = request.args.get('success_only', 'false').lower() == 'true'
+
+    logs = translation_logger.search_logs(
+        start_date=start_date,
+        end_date=end_date,
+        translation_type=translation_type,
+        source_lang=source_lang,
+        target_lang=target_lang,
+        success_only=success_only
+    )
+    return jsonify(logs)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', debug=False)
