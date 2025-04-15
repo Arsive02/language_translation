@@ -22,8 +22,6 @@
         translatedText: '',
         sourceLang: 'English',
         targetLang: '',
-        targetFamily: '',
-        isFamily: false,
         file: null,
         fileName: '',
         loading: false,
@@ -38,28 +36,10 @@
         htmlPreviewEditor: null,
         translatedHtmlEditor: null,
 
-        clearTargetSelections() {
-            this.targetLang = '';
-            this.targetFamily = '';
-        },
-
         init() {
             // Initialize with default values
-            this.isFamily = false;
-            this.targetFamily = '';
             this.targetLang = '';
 
-            this.$watch('isFamily', value => {
-                this.clearTargetSelections();
-                if (!value) {
-                    this.targetFamily = '';
-                }
-            });
-
-            this.$watch('targetFamily', value => {
-                this.targetLang = '';
-            });
-            
             this.$watch('activeTab', value => {
                 if (value === 'html') {
                     // Initialize CodeMirror after component is mounted
@@ -105,8 +85,6 @@
             formData.append('text', this.sourceText);
             formData.append('source_lang', this.sourceLang);
             formData.append('target_lang', this.targetLang);
-            formData.append('is_family', this.isFamily);
-            if (this.isFamily) formData.append('family_name', this.targetFamily);
             
             try {
                 const response = await fetch('/translate', {
@@ -139,8 +117,6 @@
             formData.append('html', this.htmlContent);
             formData.append('source_lang', this.sourceLang);
             formData.append('target_lang', this.targetLang);
-            formData.append('is_family', this.isFamily);
-            if (this.isFamily) formData.append('family_name', this.targetFamily);
             
             try {
                 const response = await fetch('/translate-html', {
@@ -197,9 +173,7 @@
             formData.append('file', this.file);
             formData.append('source_lang', this.sourceLang);
             formData.append('target_lang', this.targetLang);
-            formData.append('is_family', this.isFamily);
             formData.append('use_ocr', this.useOcr);
-            if (this.isFamily) formData.append('family_name', this.targetFamily);
             
             try {
                 const response = await fetch('/process-document', {
@@ -230,41 +204,14 @@
 
             <!-- Language Selection Panel -->
             <div class="bg-gray-50 p-6 border-b">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Source Language -->
                     <div class="space-y-2">
                         <label class="block text-sm font-medium text-gray-700">Source Language</label>
                         <select 
                             x-model="sourceLang" 
                             class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            {% for lang in individual_languages if lang == 'English' %}
-                                <option value="{{ lang }}">{{ lang }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <!-- Translation Type -->
-                    <div class="space-y-2">
-                        <label class="block text-sm font-medium text-gray-700">Translation Type</label>
-                        <select 
-                            x-model.boolean="isFamily" 
-                            @change="clearTargetSelections()"
-                            class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option :value="false">Individual Language</option>
-                            <option :value="true">Language Family</option>
-                        </select>
-                    </div>
-
-                    <!-- Language Family (Conditional) -->
-                    <div class="space-y-2" x-show="isFamily === true" x-transition x-cloak>
-                        <label class="block text-sm font-medium text-gray-700">Language Family</label>
-                        <select 
-                            x-model="targetFamily" 
-                            class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                            <option value="">Select Family</option>
-                            {% for family in language_families.keys() %}
-                                <option value="{{ family }}">{{ family }}</option>
-                            {% endfor %}
+                            <option value="English">English</option>
                         </select>
                     </div>
 
@@ -275,25 +222,10 @@
                             x-model="targetLang" 
                             class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                             <option value="">Select Language</option>
-                            <!-- Individual Languages -->
-                            <template x-if="!isFamily">
-                                <optgroup label="Individual Languages">
-                                    {% for lang, info in individual_languages.items() %}
-                                        {% if lang != 'English' %}
-                                            <option value="{{ lang }}">{{ lang }}</option>
-                                        {% endif %}
-                                    {% endfor %}
-                                </optgroup>
-                            </template>
-                            <!-- Family Languages -->
-                            {% for family, languages in language_families.items() %}
-                                <template x-if="isFamily && targetFamily === '{{ family }}'">
-                                    <optgroup label="{{ family }} Languages">
-                                        {% for lang in languages.keys() %}
-                                            <option value="{{ lang }}">{{ lang }}</option>
-                                        {% endfor %}
-                                    </optgroup>
-                                </template>
+                            {% for lang, code in languages.items() %}
+                                {% if lang != 'English' %}
+                                    <option value="{{ lang }}">{{ lang }}</option>
+                                {% endif %}
                             {% endfor %}
                         </select>
                     </div>
