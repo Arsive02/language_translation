@@ -1,7 +1,9 @@
 import logging
 import os
 import time
-from flask import Flask, render_template, request, jsonify, g
+
+from flask import Flask, g, jsonify, render_template, request
+
 from api_client import TranslationClient
 from lt_logger import TranslationLogger
 
@@ -21,7 +23,6 @@ logger = logging.getLogger(__name__)
 translation_logger = TranslationLogger(log_dir="translation_logs")
 translation_client = TranslationClient()
 
-# Language configurations
 LANGUAGE_CODES = {
     # Language codes (using 2-letter ISO codes)
     'English': 'en',
@@ -88,7 +89,6 @@ LANGUAGE_FAMILIES = {
 
 INDIVIDUAL_LANGUAGES = {lang: code for lang, code in LANGUAGE_CODES.items()}
 
-# Add request timing middleware
 @app.before_request
 def before_request():
     g.start_time = time.time()
@@ -112,10 +112,8 @@ def index():
 def health():
     """Health check endpoint for monitoring"""
     try:
-        # Check API health
         api_health = translation_client.health_check()
         
-        # Add local status
         status = {
             "status": "ok",
             "api_status": api_health.get("status", "unknown"),
@@ -141,16 +139,13 @@ def translate():
         is_family = str(data.get('is_family')).lower() == 'true'
         family_name = data.get('family_name', '')
 
-        # Log request size for performance monitoring
         logger.info(f"Text translation request: {len(text)} chars from {source_lang} to {target_lang}")
 
-        # Validate source language
         if source_lang not in INDIVIDUAL_LANGUAGES:
             raise ValueError(f"Invalid source language: {source_lang}")
         
         source_lang_code = INDIVIDUAL_LANGUAGES[source_lang]
         
-        # Handle language family translation
         if is_family:
             if family_name not in LANGUAGE_FAMILIES:
                 raise ValueError(f"Invalid language family: {family_name}")
@@ -164,11 +159,8 @@ def translate():
                 raise ValueError("Source and target languages cannot be the same")
             target_lang_code = INDIVIDUAL_LANGUAGES[target_lang]
 
-        # Calculate appropriate timeout based on text length
-        # Use a base timeout plus additional time for longer texts
         timeout = 30 + min(len(text) // 1000, 60)  # 30s base + 1s per 1000 chars, max 90s
         
-        # Call the API client to translate
         response = translation_client.translate_text(
             text,
             source_lang_code,
@@ -223,16 +215,13 @@ def translate_html():
         is_family = str(data.get('is_family')).lower() == 'true'
         family_name = data.get('family_name', '')
 
-        # Log request size for performance monitoring
         logger.info(f"HTML translation request: {len(html_content)} chars from {source_lang} to {target_lang}")
 
-        # Validate source language
         if source_lang not in INDIVIDUAL_LANGUAGES:
             raise ValueError(f"Invalid source language: {source_lang}")
         
         source_lang_code = INDIVIDUAL_LANGUAGES[source_lang]
         
-        # Handle language family translation
         if is_family:
             if family_name not in LANGUAGE_FAMILIES:
                 raise ValueError(f"Invalid language family: {family_name}")
@@ -246,11 +235,8 @@ def translate_html():
                 raise ValueError("Source and target languages cannot be the same")
             target_lang_code = INDIVIDUAL_LANGUAGES[target_lang]
 
-        # Calculate appropriate timeout based on content length
-        # HTML is more complex and needs more time
         timeout = 60 + min(len(html_content) // 500, 120)  # 60s base + 1s per 500 chars, max 180s
 
-        # Call the API client to translate HTML
         response = translation_client.translate_html(
             html_content,
             source_lang_code,
@@ -313,20 +299,16 @@ def process_document():
         is_family = request.form.get('is_family') == 'true'
         family_name = request.form.get('family_name', '')
 
-        # Log document processing request
         logger.info(f"Document processing request: {file.filename}, {source_lang} to {target_lang}, OCR: {use_ocr}")
 
-        # Validate languages
         source_lang_code = INDIVIDUAL_LANGUAGES[source_lang]
         if is_family:
             target_lang_code = LANGUAGE_FAMILIES[family_name][target_lang]
         else:
             target_lang_code = INDIVIDUAL_LANGUAGES[target_lang]
 
-        # Read file
         file_data = file.read()
         
-        # Call the API client to process document with increased timeout for large documents
         file_size_mb = len(file_data) / (1024 * 1024)
         timeout = 120 + min(int(file_size_mb * 30), 240)  # 120s base + 30s per MB, max 360s
         
@@ -410,3 +392,4 @@ def search_logs():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8000)), debug=False)
+    

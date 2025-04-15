@@ -1,9 +1,10 @@
 import json
+import logging
 import os
 import uuid
 from datetime import datetime
-from typing import Optional, Dict, Any
-import logging
+from typing import Any, Dict, Optional
+
 
 class TranslationLogger:
     def __init__(self, log_dir: str = "translation_logs"):

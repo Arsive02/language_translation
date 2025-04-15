@@ -1,11 +1,11 @@
-import requests
 import logging
 import os
 import time
-from typing import Dict, Any, Optional
+from typing import Any, Dict
+
+import requests
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ class TranslationClient:
         Args:
             api_url: URL of the Hugging Face Spaces API (or from env var)
         """
-        self.api_url = api_url or os.getenv("HF_API_URL", "https://username-universal-translator.hf.space")
+        self.api_url = api_url or os.getenv("HF_API_URL", "https://arsive-lt-space.hf.space")
         logger.info(f"Initialized Translation Client with API URL: {self.api_url}")
     
     def translate_text(self, text: str, source_lang_code: str, target_lang_code: str, timeout: int = 60) -> Dict[str, Any]:
@@ -161,3 +161,4 @@ class TranslationClient:
         except requests.RequestException as e:
             logger.error(f"Health check error: {str(e)}")
             return {"status": "error", "message": str(e)}
+        
