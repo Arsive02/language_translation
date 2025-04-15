@@ -24,7 +24,7 @@ translation_logger = TranslationLogger(log_dir="translation_logs")
 translation_client = TranslationClient()
 
 LANGUAGE_CODES = {
-    # Language codes (using 2-letter ISO codes)
+    # Common language codes (using 2-letter ISO codes)
     'English': 'en',
     'Spanish': 'es',
     'French': 'fr',
@@ -39,55 +39,21 @@ LANGUAGE_CODES = {
     'Korean': 'ko',
     'Arabic': 'ar',
     'Hindi': 'hi',
-    'Tamil': 'ta',
-    'Telugu': 'te',
-    'Kannada': 'kn',
-    'Malayalam': 'ml',
+    'Tamil': 'tam',
+    'Telugu': 'tel',
+    'Kannada': 'kan',
+    'Malayalam': 'mal',
     'Czech': 'cs',
     'Slovak': 'sk',
     'Swedish': 'sv',
     'Danish': 'da'
 }
 
-LANGUAGE_FAMILIES = {
-    'Dravidian': {
-        'Tamil': 'ta',
-        'Telugu': 'te',
-        'Kannada': 'kn',
-        'Malayalam': 'ml'
-    },
-    'Slavic': {
-        'Russian': 'ru',
-        'Polish': 'pl',
-        'Czech': 'cs',
-        'Slovak': 'sk'
-    },
-    'Germanic': {
-        'German': 'de',
-        'Dutch': 'nl',
-        'Swedish': 'sv',
-        'Danish': 'da'
-    },
-    'Romance': {
-        'Spanish': 'es',
-        'French': 'fr',
-        'Italian': 'it',
-        'Portuguese': 'pt'
-    },
-    'Asian': {
-        'Chinese': 'zh',
-        'Japanese': 'ja',
-        'Korean': 'ko',
-    },
-    'Indic': {
-        'Hindi': 'hi',
-        'Bengali': 'bn',
-        'Marathi': 'mr',
-        'Gujarati': 'gu'
-    }
+SPECIAL_TOKEN_LANGUAGES = {
+    'Tamil', 'Telugu', 'Kannada', 'Malayalam'
 }
 
-INDIVIDUAL_LANGUAGES = {lang: code for lang, code in LANGUAGE_CODES.items()}
+DRAVIDIAN_MODEL = "Helsinki-NLP/opus-mt-en-dra"
 
 @app.before_request
 def before_request():
@@ -104,8 +70,7 @@ def after_request(response):
 def index():
     return render_template(
         'index.html',
-        language_families=LANGUAGE_FAMILIES,
-        individual_languages=INDIVIDUAL_LANGUAGES
+        languages=LANGUAGE_CODES
     )
 
 @app.route('/health', methods=['GET'])
@@ -136,28 +101,24 @@ def translate():
         text = data.get('text', '')
         source_lang = data.get('source_lang', 'English')
         target_lang = data.get('target_lang', '')
-        is_family = str(data.get('is_family')).lower() == 'true'
-        family_name = data.get('family_name', '')
 
         logger.info(f"Text translation request: {len(text)} chars from {source_lang} to {target_lang}")
 
-        if source_lang not in INDIVIDUAL_LANGUAGES:
+        if source_lang not in LANGUAGE_CODES:
             raise ValueError(f"Invalid source language: {source_lang}")
         
-        source_lang_code = INDIVIDUAL_LANGUAGES[source_lang]
+        if target_lang not in LANGUAGE_CODES:
+            raise ValueError(f"Invalid target language: {target_lang}")
+            
+        if target_lang == source_lang:
+            raise ValueError("Source and target languages cannot be the same")
+            
+        source_lang_code = LANGUAGE_CODES[source_lang]
+        target_lang_code = LANGUAGE_CODES[target_lang]
         
-        if is_family:
-            if family_name not in LANGUAGE_FAMILIES:
-                raise ValueError(f"Invalid language family: {family_name}")
-            if target_lang not in LANGUAGE_FAMILIES[family_name]:
-                raise ValueError(f"Invalid target language {target_lang} for family {family_name}")
-            target_lang_code = LANGUAGE_FAMILIES[family_name][target_lang]
-        else:
-            if target_lang not in INDIVIDUAL_LANGUAGES:
-                raise ValueError(f"Invalid target language: {target_lang}")
-            if target_lang == source_lang:
-                raise ValueError("Source and target languages cannot be the same")
-            target_lang_code = INDIVIDUAL_LANGUAGES[target_lang]
+        if target_lang in SPECIAL_TOKEN_LANGUAGES:
+            text = f">>{target_lang_code}<<{text}"
+            target_lang_code = "dra"
 
         timeout = 30 + min(len(text) // 1000, 60)  # 30s base + 1s per 1000 chars, max 90s
         
@@ -175,8 +136,8 @@ def translate():
             translated_text=translated_text,
             source_lang=source_lang,
             target_lang=target_lang,
-            is_family=is_family,
-            family_name=family_name,
+            is_family=False,
+            family_name="",
             success=True
         )
 
@@ -194,8 +155,8 @@ def translate():
             translated_text="",
             source_lang=data.get('source_lang', '') if 'data' in locals() else '',
             target_lang=data.get('target_lang', '') if 'data' in locals() else '',
-            is_family=str(data.get('is_family', '')).lower() == 'true' if 'data' in locals() else False,
-            family_name=data.get('family_name', '') if 'data' in locals() else '',
+            is_family=False,
+            family_name="",
             success=False,
             error_message=error_message
         )
@@ -212,28 +173,25 @@ def translate_html():
         html_content = data.get('html', '')
         source_lang = data.get('source_lang', 'English')
         target_lang = data.get('target_lang', '')
-        is_family = str(data.get('is_family')).lower() == 'true'
-        family_name = data.get('family_name', '')
 
         logger.info(f"HTML translation request: {len(html_content)} chars from {source_lang} to {target_lang}")
 
-        if source_lang not in INDIVIDUAL_LANGUAGES:
+        if source_lang not in LANGUAGE_CODES:
             raise ValueError(f"Invalid source language: {source_lang}")
         
-        source_lang_code = INDIVIDUAL_LANGUAGES[source_lang]
+        if target_lang not in LANGUAGE_CODES:
+            raise ValueError(f"Invalid target language: {target_lang}")
+            
+        if target_lang == source_lang:
+            raise ValueError("Source and target languages cannot be the same")
+            
+        source_lang_code = LANGUAGE_CODES[source_lang]
+        target_lang_code = LANGUAGE_CODES[target_lang]
         
-        if is_family:
-            if family_name not in LANGUAGE_FAMILIES:
-                raise ValueError(f"Invalid language family: {family_name}")
-            if target_lang not in LANGUAGE_FAMILIES[family_name]:
-                raise ValueError(f"Invalid target language {target_lang} for family {family_name}")
-            target_lang_code = LANGUAGE_FAMILIES[family_name][target_lang]
-        else:
-            if target_lang not in INDIVIDUAL_LANGUAGES:
-                raise ValueError(f"Invalid target language: {target_lang}")
-            if target_lang == source_lang:
-                raise ValueError("Source and target languages cannot be the same")
-            target_lang_code = INDIVIDUAL_LANGUAGES[target_lang]
+        special_token = ""
+        if target_lang in SPECIAL_TOKEN_LANGUAGES:
+            special_token = f">>{target_lang_code}<<"
+            target_lang_code = "dra"
 
         timeout = 60 + min(len(html_content) // 500, 120)  # 60s base + 1s per 500 chars, max 180s
 
@@ -241,6 +199,7 @@ def translate_html():
             html_content,
             source_lang_code,
             target_lang_code,
+            special_token=special_token,
             timeout=timeout
         )
 
@@ -251,8 +210,8 @@ def translate_html():
             translated_text=translated_html,
             source_lang=source_lang,
             target_lang=target_lang,
-            is_family=is_family,
-            family_name=family_name,
+            is_family=False,
+            family_name="",
             success=True,
             translation_type="html"
         )
@@ -271,8 +230,8 @@ def translate_html():
             translated_text="",
             source_lang=data.get('source_lang', '') if 'data' in locals() else '',
             target_lang=data.get('target_lang', '') if 'data' in locals() else '',
-            is_family=str(data.get('is_family', '')).lower() == 'true' if 'data' in locals() else False,
-            family_name=data.get('family_name', '') if 'data' in locals() else '',
+            is_family=False,
+            family_name="",
             success=False,
             error_message=error_message,
             translation_type="html"
@@ -296,16 +255,25 @@ def process_document():
         use_ocr = request.form.get('use_ocr', 'false').lower() == 'true'
         source_lang = request.form.get('source_lang', 'English')
         target_lang = request.form.get('target_lang', '')
-        is_family = request.form.get('is_family') == 'true'
-        family_name = request.form.get('family_name', '')
 
         logger.info(f"Document processing request: {file.filename}, {source_lang} to {target_lang}, OCR: {use_ocr}")
 
-        source_lang_code = INDIVIDUAL_LANGUAGES[source_lang]
-        if is_family:
-            target_lang_code = LANGUAGE_FAMILIES[family_name][target_lang]
-        else:
-            target_lang_code = INDIVIDUAL_LANGUAGES[target_lang]
+        if source_lang not in LANGUAGE_CODES:
+            raise ValueError(f"Invalid source language: {source_lang}")
+            
+        if target_lang not in LANGUAGE_CODES:
+            raise ValueError(f"Invalid target language: {target_lang}")
+            
+        if target_lang == source_lang:
+            raise ValueError("Source and target languages cannot be the same")
+            
+        source_lang_code = LANGUAGE_CODES[source_lang]
+        target_lang_code = LANGUAGE_CODES[target_lang]
+        
+        special_token = ""
+        if target_lang in SPECIAL_TOKEN_LANGUAGES:
+            special_token = f">>{target_lang_code}<<"
+            target_lang_code = "dra"
 
         file_data = file.read()
         
@@ -317,7 +285,8 @@ def process_document():
             file.filename,
             source_lang_code,
             target_lang_code,
-            use_ocr,
+            special_token=special_token,
+            use_ocr=use_ocr,
             timeout=timeout
         )
 
@@ -329,8 +298,8 @@ def process_document():
             translated_text=translated_text,
             source_lang=source_lang,
             target_lang=target_lang,
-            is_family=is_family,
-            family_name=family_name,
+            is_family=False,
+            family_name="",
             extracted_text=extracted_text,
             file_name=file.filename,
             success=True
@@ -353,8 +322,8 @@ def process_document():
             translated_text="",
             source_lang=request.form.get('source_lang', 'English'),
             target_lang=request.form.get('target_lang', ''),
-            is_family=request.form.get('is_family') == 'true',
-            family_name=request.form.get('family_name', ''),
+            is_family=False,
+            family_name="",
             file_name=file.filename if 'file' in locals() else None,
             success=False,
             error_message=error_message
@@ -392,4 +361,3 @@ def search_logs():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8000)), debug=False)
-    

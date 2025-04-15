@@ -23,7 +23,14 @@ class TranslationClient:
         self.api_url = api_url or os.getenv("HF_API_URL", "https://arsive-lt-space.hf.space")
         logger.info(f"Initialized Translation Client with API URL: {self.api_url}")
     
-    def translate_text(self, text: str, source_lang_code: str, target_lang_code: str, timeout: int = 60) -> Dict[str, Any]:
+    def translate_text(
+        self, 
+        text: str, 
+        source_lang_code: str, 
+        target_lang_code: str, 
+        special_token: str = "",
+        timeout: int = 60
+    ) -> Dict[str, Any]:
         """
         Translate text using the API
         
@@ -31,6 +38,7 @@ class TranslationClient:
             text: Text to translate
             source_lang_code: Source language code
             target_lang_code: Target language code
+            special_token: Special token to add for certain language models (e.g., >>tam<<)
             timeout: Request timeout in seconds
             
         Returns:
@@ -39,6 +47,9 @@ class TranslationClient:
         try:
             start_time = time.time()
             logger.info(f"Sending translation request: {source_lang_code} → {target_lang_code}, length: {len(text)} chars")
+            
+            if special_token:
+                logger.info(f"Using special language token: {special_token}")
             
             endpoint = f"{self.api_url}/translate"
             payload = {
@@ -58,7 +69,14 @@ class TranslationClient:
             logger.error(f"Translation API error: {str(e)}")
             raise
     
-    def translate_html(self, html: str, source_lang_code: str, target_lang_code: str, timeout: int = 120) -> Dict[str, Any]:
+    def translate_html(
+        self, 
+        html: str, 
+        source_lang_code: str, 
+        target_lang_code: str, 
+        special_token: str = "",
+        timeout: int = 120
+    ) -> Dict[str, Any]:
         """
         Translate HTML using the API
         
@@ -66,6 +84,7 @@ class TranslationClient:
             html: HTML content to translate
             source_lang_code: Source language code
             target_lang_code: Target language code
+            special_token: Special token to add for certain language models (e.g., >>tam<<)
             timeout: Request timeout in seconds (longer for HTML)
             
         Returns:
@@ -79,7 +98,8 @@ class TranslationClient:
             payload = {
                 "html": html,
                 "source_lang_code": source_lang_code,
-                "target_lang_code": target_lang_code
+                "target_lang_code": target_lang_code,
+                "special_token": special_token
             }
             
             response = requests.post(endpoint, json=payload, timeout=timeout)
@@ -99,6 +119,7 @@ class TranslationClient:
         filename: str, 
         source_lang_code: str, 
         target_lang_code: str,
+        special_token: str = "",
         use_ocr: bool = False,
         timeout: int = 180
     ) -> Dict[str, Any]:
@@ -110,6 +131,7 @@ class TranslationClient:
             filename: Original filename
             source_lang_code: Source language code
             target_lang_code: Target language code
+            special_token: Special token to add for certain language models (e.g., >>tam<<)
             use_ocr: Whether to use OCR
             timeout: Request timeout in seconds (longest for documents)
             
@@ -129,6 +151,7 @@ class TranslationClient:
             data = {
                 'source_lang_code': source_lang_code,
                 'target_lang_code': target_lang_code,
+                'special_token': special_token,
                 'use_ocr': str(use_ocr).lower()
             }
             
@@ -161,4 +184,3 @@ class TranslationClient:
         except requests.RequestException as e:
             logger.error(f"Health check error: {str(e)}")
             return {"status": "error", "message": str(e)}
-        
